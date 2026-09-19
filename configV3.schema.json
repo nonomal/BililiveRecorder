@@ -7,8 +7,8 @@
       "additionalProperties": false,
       "properties": {
         "FileNameRecordTemplate": {
-          "description": "录制文件名模板\n默认: {{ roomId }}-{{ name }}/录制-{{ roomId }}-{{ \"now\" | time_zone: \"Asia/Shanghai\" | format_date: \"yyyyMMdd-HHmmss-fff\" }}-{{ title }}.flv",
-          "markdownDescription": "录制文件名模板  \n默认: `{{ roomId }}-{{ name }}/录制-{{ roomId }}-{{ \"now\" | time_zone: \"Asia/Shanghai\" | format_date: \"yyyyMMdd-HHmmss-fff\" }}-{{ title }}.flv `\n\n",
+          "description": "录制文件名模板\n默认: {{ roomId }}-{{ name | unescape }}/录制-{{ roomId }}-{{ \"now\" | time_zone: \"Asia/Shanghai\" | format_date: \"yyyyMMdd-HHmmss-fff\" }}-{{ title | unescape }}.flv",
+          "markdownDescription": "录制文件名模板  \n默认: `{{ roomId }}-{{ name | unescape }}/录制-{{ roomId }}-{{ \"now\" | time_zone: \"Asia/Shanghai\" | format_date: \"yyyyMMdd-HHmmss-fff\" }}-{{ title | unescape }}.flv `\n\n",
           "type": "object",
           "additionalProperties": false,
           "properties": {
@@ -18,7 +18,23 @@
             },
             "Value": {
               "type": "string",
-              "default": "{{ roomId }}-{{ name }}/录制-{{ roomId }}-{{ \"now\" | time_zone: \"Asia/Shanghai\" | format_date: \"yyyyMMdd-HHmmss-fff\" }}-{{ title }}.flv"
+              "default": "{{ roomId }}-{{ name | unescape }}/录制-{{ roomId }}-{{ \"now\" | time_zone: \"Asia/Shanghai\" | format_date: \"yyyyMMdd-HHmmss-fff\" }}-{{ title | unescape }}.flv"
+            }
+          }
+        },
+        "FlvWriteMetadata": {
+          "description": "是否在视频文件写入直播信息 metadata\n默认: true",
+          "markdownDescription": "是否在视频文件写入直播信息 metadata  \n默认: `true `\n\n",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "HasValue": {
+              "type": "boolean",
+              "default": true
+            },
+            "Value": {
+              "type": "boolean",
+              "default": true
             }
           }
         },
@@ -120,8 +136,8 @@
           }
         },
         "TimingCheckInterval": {
-          "description": "主动检查时间间隔 秒\n默认: 600",
-          "markdownDescription": "主动检查时间间隔 秒  \n默认: `600 `\n\n",
+          "description": "主动检查时间间隔 秒\n默认: 180",
+          "markdownDescription": "主动检查时间间隔 秒  \n默认: `180 `\n\n",
           "type": "object",
           "additionalProperties": false,
           "properties": {
@@ -133,13 +149,13 @@
               "type": "integer",
               "minimum": 0,
               "maximum": 4294967295,
-              "default": 600
+              "default": 180
             }
           }
         },
         "TimingApiTimeout": {
-          "description": "请求B站API超时时间 毫秒\n默认: 10000",
-          "markdownDescription": "请求B站API超时时间 毫秒  \n默认: `10000 `\n\n",
+          "description": "请求mikufansAPI超时时间 毫秒\n默认: 10000",
+          "markdownDescription": "请求mikufansAPI超时时间 毫秒  \n默认: `10000 `\n\n",
           "type": "object",
           "additionalProperties": false,
           "properties": {
@@ -264,8 +280,8 @@
           }
         },
         "DanmakuTransport": {
-          "description": "使用的弹幕服务器传输协议\n默认: DanmakuTransportMode.Random",
-          "markdownDescription": "使用的弹幕服务器传输协议  \n默认: `DanmakuTransportMode.Random `\n\n",
+          "description": "使用的弹幕服务器传输协议\n默认: DanmakuTransportMode.Wss",
+          "markdownDescription": "使用的弹幕服务器传输协议  \n默认: `DanmakuTransportMode.Wss `\n\n",
           "type": "object",
           "additionalProperties": false,
           "properties": {
@@ -283,6 +299,22 @@
                 3
               ],
               "description": "0: 随机\n1: TCP\n2: WebSocket (HTTP)\n3: WebSocket (HTTPS)"
+            }
+          }
+        },
+        "DanmakuAuthenticateWithStreamerUid": {
+          "description": "使用直播间主播的uid进行弹幕服务器认证\n默认: false",
+          "markdownDescription": "使用直播间主播的uid进行弹幕服务器认证  \n默认: `false `\n\n",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "HasValue": {
+              "type": "boolean",
+              "default": true
+            },
+            "Value": {
+              "type": "boolean",
+              "default": false
             }
           }
         },
@@ -322,6 +354,22 @@
                 2
               ],
               "description": "-1: 由系统决定\n0: 任意 IPv4 或 IPv6\n1: 仅 IPv4\n2: IPv6"
+            }
+          }
+        },
+        "NetworkTransportBindAddress": {
+          "description": "绑定的网络接口或IP地址\n默认: ",
+          "markdownDescription": "绑定的网络接口或IP地址  \n默认: ``\n\n",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "HasValue": {
+              "type": "boolean",
+              "default": true
+            },
+            "Value": {
+              "type": "string",
+              "default": ""
             }
           }
         },
@@ -399,6 +447,22 @@
               "minimum": 0,
               "maximum": 4294967295,
               "default": 100
+            }
+          }
+        },
+        "CuttingByTitle": {
+          "description": "改标题后自动分段\n默认: false",
+          "markdownDescription": "改标题后自动分段  \n默认: `false `\n\n",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "HasValue": {
+              "type": "boolean",
+              "default": true
+            },
+            "Value": {
+              "type": "boolean",
+              "default": false
             }
           }
         },
@@ -499,8 +563,8 @@
           }
         },
         "RecordingQuality": {
-          "description": "直播画质\n默认: 10000",
-          "markdownDescription": "直播画质  \n默认: `10000 `\n\n",
+          "description": "直播画质\n默认: avc10000,hevc10000",
+          "markdownDescription": "直播画质  \n默认: `avc10000,hevc10000 `\n\n",
           "type": "object",
           "additionalProperties": false,
           "properties": {
@@ -510,7 +574,7 @@
             },
             "Value": {
               "type": "string",
-              "default": "10000"
+              "default": "avc10000,hevc10000"
             }
           }
         },
@@ -527,6 +591,38 @@
             "Value": {
               "type": "boolean",
               "default": false
+            }
+          }
+        },
+        "FlvProcessorDisableSplitOnH264AnnexB": {
+          "description": "FLV修复-检测到 H264 Annex-B 时禁用修复分段\n默认: false",
+          "markdownDescription": "FLV修复-检测到 H264 Annex-B 时禁用修复分段  \n默认: `false `\n\n",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "HasValue": {
+              "type": "boolean",
+              "default": true
+            },
+            "Value": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "TitleFilterPatterns": {
+          "description": "不录制的标题匹配正则\n默认: ",
+          "markdownDescription": "不录制的标题匹配正则  \n默认: ` `\n\n",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "HasValue": {
+              "type": "boolean",
+              "default": true
+            },
+            "Value": {
+              "type": "string",
+              "default": ""
             }
           }
         }
@@ -631,6 +727,22 @@
             }
           }
         },
+        "CuttingByTitle": {
+          "description": "改标题后自动分段\n默认: false",
+          "markdownDescription": "改标题后自动分段  \n默认: `false `\n\n",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "HasValue": {
+              "type": "boolean",
+              "default": true
+            },
+            "Value": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
         "RecordDanmaku": {
           "description": "弹幕录制\n默认: false",
           "markdownDescription": "弹幕录制  \n默认: `false `\n\n",
@@ -728,8 +840,8 @@
           }
         },
         "RecordingQuality": {
-          "description": "直播画质\n默认: 10000",
-          "markdownDescription": "直播画质  \n默认: `10000 `\n\n",
+          "description": "直播画质\n默认: avc10000,hevc10000",
+          "markdownDescription": "直播画质  \n默认: `avc10000,hevc10000 `\n\n",
           "type": "object",
           "additionalProperties": false,
           "properties": {
@@ -739,7 +851,7 @@
             },
             "Value": {
               "type": "string",
-              "default": "10000"
+              "default": "avc10000,hevc10000"
             }
           }
         },
@@ -756,6 +868,38 @@
             "Value": {
               "type": "boolean",
               "default": false
+            }
+          }
+        },
+        "FlvProcessorDisableSplitOnH264AnnexB": {
+          "description": "FLV修复-检测到 H264 Annex-B 时禁用修复分段\n默认: false",
+          "markdownDescription": "FLV修复-检测到 H264 Annex-B 时禁用修复分段  \n默认: `false `\n\n",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "HasValue": {
+              "type": "boolean",
+              "default": true
+            },
+            "Value": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "TitleFilterPatterns": {
+          "description": "不录制的标题匹配正则\n默认: ",
+          "markdownDescription": "不录制的标题匹配正则  \n默认: ` `\n\n",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "HasValue": {
+              "type": "boolean",
+              "default": true
+            },
+            "Value": {
+              "type": "string",
+              "default": ""
             }
           }
         }

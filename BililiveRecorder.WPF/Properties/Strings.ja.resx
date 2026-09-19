@@ -132,7 +132,7 @@
   </data>
   <data name="About_Name" xml:space="preserve">
     <value>ビリ生録画姫</value>
-    <comment>Add "(B站录播姬)" after translation</comment>
+    <comment>Add "(mikufans录播姬)" after translation</comment>
   </data>
   <data name="About_Project" xml:space="preserve">
     <value>プロジェクトホーム</value>
@@ -490,7 +490,10 @@ FLV フォーマットのみサポートされています。</value>
     <value>録画の長さによって分割する</value>
   </data>
   <data name="Settings_Splitting_RadioButton_Disabled" xml:space="preserve">
-    <value>自動分割しない</value>
+    <value>ファイルサイズやビデオの時間によって分割しないでください</value>
+  </data>
+  <data name="Settings_Splitting_ToggleSwitch_ByTitle" xml:space="preserve">
+    <value>配信ルームの名を変更した後に、録画を分割する</value>
   </data>
   <data name="Settings_Splitting_TextBox_Left" xml:space="preserve">
     <value> </value>
@@ -687,7 +690,7 @@ rec@danmuji.orgまでフィードバック受け付けます。
     <value>ツールボックス</value>
   </data>
   <data name="Window_Title" xml:space="preserve">
-    <value>ビリビリ録画機 (B站录播姬) {0}</value>
+    <value>ビリビリ録画機 (mikufans录播姬) {0}</value>
   </data>
   <data name="WorkDirectorySelector_Browse" xml:space="preserve">
     <value>参照...</value>

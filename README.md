@@ -1,7 +1,7 @@
 <div style="text-align:center">
 <img width="20%" src=".github/assets/logo.svg">
 
-# B站录播姬
+# mikufans录播姬
 
 [![Build and Test](https://github.com/BililiveRecorder/BililiveRecorder/actions/workflows/build.yml/badge.svg?branch=dev)](https://github.com/BililiveRecorder/BililiveRecorder/actions/workflows/build.yml)
 [![Version](https://img.shields.io/github/tag/Bililive/BililiveRecorder.svg?label=Version)](#)
@@ -32,7 +32,7 @@ Binary files of the command line version are available for Linux, macOS, and Win
 
 Docker images can be pulled from [Docker Hub `bililive/recorder`](https://hub.docker.com/r/bililive/recorder) or [`ghcr.io/bililiverecorder/bililiverecorder`](https://github.com/bililiverecorder/BililiveRecorder/pkgs/container/bililiverecorder).
 
-See [rec.danmuji.org/user/install](https://rec.danmuji.org/user/install) for step by step installation guides (in Chinese).
+See [rec.danmuji.org/install/versions](https://rec.danmuji.org/install/versions/) for step by step installation guides (in Chinese).
 
 ## Feature
 
@@ -82,7 +82,7 @@ dotnet build BililiveRecorder.Cli
 Project | Target |
 :--- |:--- |
 BililiveRecorder.Flv | .NET Standard 2.0 |
-BililiveRecorder.Core | .NET Standard 2.0 |
+BililiveRecorder.Core | .NET 6<br>.NET Framework 4.7.2 |
 BililiveRecorder.Toolbox | .NET Standard 2.0 |
 BililiveRecorder.WPF | .NET Framework 4.7.2 |
 BililiveRecorder.Web | .NET 6 |

@@ -1,37 +1,71 @@
 using System;
+using System.Collections;
 using System.IO.Pipelines;
+using System.Net;
+#if NET8_0_OR_GREATER
+using System.Net.Http;
+#endif
 using System.Net.WebSockets;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using BililiveRecorder.Core.Api.Http;
+using BililiveRecorder.Core.Config;
 using Nerdbank.Streams;
 
 namespace BililiveRecorder.Core.Api.Danmaku
 {
     internal class DanmakuTransportWebSocket : IDanmakuTransport
     {
-        private static readonly bool isDotNetFramework = RuntimeInformation.FrameworkDescription.StartsWith(".NET Framework", StringComparison.Ordinal);
-
         private readonly ClientWebSocket socket;
+        private readonly string? bindAddress;
 
         protected virtual string Scheme => "ws";
 
-        public DanmakuTransportWebSocket()
+        static DanmakuTransportWebSocket()
         {
-            this.socket = new ClientWebSocket();
-            this.socket.Options.UseDefaultCredentials = false;
-            this.socket.Options.Credentials = null;
-            this.socket.Options.Proxy = null;
-            this.socket.Options.Cookies = null;
+            if (!RuntimeInformation.FrameworkDescription.StartsWith(".NET Framework", StringComparison.Ordinal))
+                return;
 
-            this.socket.Options.SetRequestHeader("Origin", HttpApiClient.HttpHeaderOrigin);
+            var headerInfoTable = typeof(WebHeaderCollection).Assembly.GetType("System.Net.HeaderInfoTable", false);
+            if (headerInfoTable is null) return;
 
-            if (!isDotNetFramework)
-                this.socket.Options.SetRequestHeader("User-Agent", HttpApiClient.HttpHeaderUserAgent);
+            var headerHashTable = headerInfoTable.GetField("HeaderHashTable", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            if (headerHashTable is null) return;
+
+            if (headerHashTable.GetValue(null) is not Hashtable table) return;
+
+            foreach (var key in new[] { "User-Agent", "Referer", "Accept" })
+            {
+                var info = table[key];
+                if (info is null) continue;
+
+                var isRequestRestrictedProperty = info.GetType().GetField("IsRequestRestricted", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                if (isRequestRestrictedProperty is null) continue;
+
+                isRequestRestrictedProperty.SetValue(info, false);
+            }
         }
 
-        public async Task<PipeReader> ConnectAsync(string host, int port, CancellationToken cancellationToken)
+        public DanmakuTransportWebSocket(string? bindAddress = null)
+        {
+            this.bindAddress = bindAddress;
+            this.socket = new ClientWebSocket();
+            var options = this.socket.Options;
+            options.UseDefaultCredentials = false;
+            options.Credentials = null;
+            options.Proxy = null;
+            options.Cookies = null;
+            options.SetRequestHeader("Origin", HttpApiClient.HttpHeaderOrigin);
+            options.SetRequestHeader("Referer", HttpApiClient.HttpHeaderReferer);
+            options.SetRequestHeader("User-Agent", HttpApiClient.HttpHeaderUserAgent);
+            options.SetRequestHeader("Accept-Language", HttpApiClient.HttpHeaderAcceptLanguage);
+            options.SetRequestHeader("Accept", "*/*");
+            options.SetRequestHeader("Pragma", "no-cache");
+            options.SetRequestHeader("Cache-Control", "no-cache");
+        }
+
+        public async Task<PipeReader> ConnectAsync(string host, int port, AllowedAddressFamily allowedAddressFamily, CancellationToken cancellationToken)
         {
             var b = new UriBuilder(this.Scheme, host, port, "/sub");
 
@@ -39,7 +73,20 @@ namespace BililiveRecorder.Core.Api.Danmaku
             var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(TimeSpan.FromSeconds(10));
 
+#if NET8_0_OR_GREATER
+            if (!string.IsNullOrWhiteSpace(this.bindAddress))
+            {
+                var handler = HttpClientWithBindAddress.CreateHandler(this.bindAddress, useProxy: false);
+                using var invoker = new HttpMessageInvoker(handler, disposeHandler: true);
+                await this.socket.ConnectAsync(b.Uri, invoker, cts.Token).ConfigureAwait(false);
+            }
+            else
+            {
+                await this.socket.ConnectAsync(b.Uri, cts.Token).ConfigureAwait(false);
+            }
+#else
             await this.socket.ConnectAsync(b.Uri, cts.Token).ConfigureAwait(false);
+#endif
             return this.socket.UsePipeReader();
         }
 

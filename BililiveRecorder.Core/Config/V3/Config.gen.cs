@@ -54,6 +54,14 @@ namespace BililiveRecorder.Core.Config.V3
         public Optional<uint> OptionalCuttingNumber { get => this.GetPropertyValueOptional<uint>(nameof(this.CuttingNumber)); set => this.SetPropertyValueOptional(value, nameof(this.CuttingNumber)); }
 
         /// <summary>
+        /// 改标题后自动分段
+        /// </summary>
+        public bool CuttingByTitle { get => this.GetPropertyValue<bool>(); set => this.SetPropertyValue(value); }
+        public bool HasCuttingByTitle { get => this.GetPropertyHasValue(nameof(this.CuttingByTitle)); set => this.SetPropertyHasValue<bool>(value, nameof(this.CuttingByTitle)); }
+        [JsonProperty(nameof(CuttingByTitle)), EditorBrowsable(EditorBrowsableState.Never)]
+        public Optional<bool> OptionalCuttingByTitle { get => this.GetPropertyValueOptional<bool>(nameof(this.CuttingByTitle)); set => this.SetPropertyValueOptional(value, nameof(this.CuttingByTitle)); }
+
+        /// <summary>
         /// 弹幕录制
         /// </summary>
         public bool RecordDanmaku { get => this.GetPropertyValue<bool>(); set => this.SetPropertyValue(value); }
@@ -118,9 +126,30 @@ namespace BililiveRecorder.Core.Config.V3
         public Optional<bool> OptionalFlvProcessorSplitOnScriptTag { get => this.GetPropertyValueOptional<bool>(nameof(this.FlvProcessorSplitOnScriptTag)); set => this.SetPropertyValueOptional(value, nameof(this.FlvProcessorSplitOnScriptTag)); }
 
         /// <summary>
+        /// FLV修复-检测到 H264 Annex-B 时禁用修复分段
+        /// </summary>
+        public bool FlvProcessorDisableSplitOnH264AnnexB { get => this.GetPropertyValue<bool>(); set => this.SetPropertyValue(value); }
+        public bool HasFlvProcessorDisableSplitOnH264AnnexB { get => this.GetPropertyHasValue(nameof(this.FlvProcessorDisableSplitOnH264AnnexB)); set => this.SetPropertyHasValue<bool>(value, nameof(this.FlvProcessorDisableSplitOnH264AnnexB)); }
+        [JsonProperty(nameof(FlvProcessorDisableSplitOnH264AnnexB)), EditorBrowsable(EditorBrowsableState.Never)]
+        public Optional<bool> OptionalFlvProcessorDisableSplitOnH264AnnexB { get => this.GetPropertyValueOptional<bool>(nameof(this.FlvProcessorDisableSplitOnH264AnnexB)); set => this.SetPropertyValueOptional(value, nameof(this.FlvProcessorDisableSplitOnH264AnnexB)); }
+
+        /// <summary>
+        /// 不录制的标题匹配正则
+        /// </summary>
+        public string? TitleFilterPatterns { get => this.GetPropertyValue<string>(); set => this.SetPropertyValue(value); }
+        public bool HasTitleFilterPatterns { get => this.GetPropertyHasValue(nameof(this.TitleFilterPatterns)); set => this.SetPropertyHasValue<string>(value, nameof(this.TitleFilterPatterns)); }
+        [JsonProperty(nameof(TitleFilterPatterns)), EditorBrowsable(EditorBrowsableState.Never)]
+        public Optional<string?> OptionalTitleFilterPatterns { get => this.GetPropertyValueOptional<string>(nameof(this.TitleFilterPatterns)); set => this.SetPropertyValueOptional(value, nameof(this.TitleFilterPatterns)); }
+
+        /// <summary>
         /// 录制文件名模板
         /// </summary>
         public string? FileNameRecordTemplate => this.GetPropertyValue<string>();
+
+        /// <summary>
+        /// 是否在视频文件写入直播信息 metadata
+        /// </summary>
+        public bool FlvWriteMetadata => this.GetPropertyValue<bool>();
 
         /// <summary>
         /// WebhookV1
@@ -158,7 +187,7 @@ namespace BililiveRecorder.Core.Config.V3
         public uint TimingCheckInterval => this.GetPropertyValue<uint>();
 
         /// <summary>
-        /// 请求B站API超时时间 毫秒
+        /// 请求mikufansAPI超时时间 毫秒
         /// </summary>
         public uint TimingApiTimeout => this.GetPropertyValue<uint>();
 
@@ -198,6 +227,11 @@ namespace BililiveRecorder.Core.Config.V3
         public DanmakuTransportMode DanmakuTransport => this.GetPropertyValue<DanmakuTransportMode>();
 
         /// <summary>
+        /// 使用直播间主播的uid进行弹幕服务器认证
+        /// </summary>
+        public bool DanmakuAuthenticateWithStreamerUid => this.GetPropertyValue<bool>();
+
+        /// <summary>
         /// 是否使用系统代理
         /// </summary>
         public bool NetworkTransportUseSystemProxy => this.GetPropertyValue<bool>();
@@ -206,6 +240,11 @@ namespace BililiveRecorder.Core.Config.V3
         /// 允许使用的 IP 网络类型
         /// </summary>
         public AllowedAddressFamily NetworkTransportAllowedAddressFamily => this.GetPropertyValue<AllowedAddressFamily>();
+
+        /// <summary>
+        /// 绑定的网络接口或IP地址
+        /// </summary>
+        public string? NetworkTransportBindAddress => this.GetPropertyValue<string>();
 
         /// <summary>
         /// 自定义脚本
@@ -240,6 +279,14 @@ namespace BililiveRecorder.Core.Config.V3
         public bool HasCuttingNumber { get => this.GetPropertyHasValue(nameof(this.CuttingNumber)); set => this.SetPropertyHasValue<uint>(value, nameof(this.CuttingNumber)); }
         [JsonProperty(nameof(CuttingNumber)), EditorBrowsable(EditorBrowsableState.Never)]
         public Optional<uint> OptionalCuttingNumber { get => this.GetPropertyValueOptional<uint>(nameof(this.CuttingNumber)); set => this.SetPropertyValueOptional(value, nameof(this.CuttingNumber)); }
+
+        /// <summary>
+        /// 改标题后自动分段
+        /// </summary>
+        public bool CuttingByTitle { get => this.GetPropertyValue<bool>(); set => this.SetPropertyValue(value); }
+        public bool HasCuttingByTitle { get => this.GetPropertyHasValue(nameof(this.CuttingByTitle)); set => this.SetPropertyHasValue<bool>(value, nameof(this.CuttingByTitle)); }
+        [JsonProperty(nameof(CuttingByTitle)), EditorBrowsable(EditorBrowsableState.Never)]
+        public Optional<bool> OptionalCuttingByTitle { get => this.GetPropertyValueOptional<bool>(nameof(this.CuttingByTitle)); set => this.SetPropertyValueOptional(value, nameof(this.CuttingByTitle)); }
 
         /// <summary>
         /// 弹幕录制
@@ -314,6 +361,30 @@ namespace BililiveRecorder.Core.Config.V3
         public Optional<bool> OptionalFlvProcessorSplitOnScriptTag { get => this.GetPropertyValueOptional<bool>(nameof(this.FlvProcessorSplitOnScriptTag)); set => this.SetPropertyValueOptional(value, nameof(this.FlvProcessorSplitOnScriptTag)); }
 
         /// <summary>
+        /// FLV修复-检测到 H264 Annex-B 时禁用修复分段
+        /// </summary>
+        public bool FlvProcessorDisableSplitOnH264AnnexB { get => this.GetPropertyValue<bool>(); set => this.SetPropertyValue(value); }
+        public bool HasFlvProcessorDisableSplitOnH264AnnexB { get => this.GetPropertyHasValue(nameof(this.FlvProcessorDisableSplitOnH264AnnexB)); set => this.SetPropertyHasValue<bool>(value, nameof(this.FlvProcessorDisableSplitOnH264AnnexB)); }
+        [JsonProperty(nameof(FlvProcessorDisableSplitOnH264AnnexB)), EditorBrowsable(EditorBrowsableState.Never)]
+        public Optional<bool> OptionalFlvProcessorDisableSplitOnH264AnnexB { get => this.GetPropertyValueOptional<bool>(nameof(this.FlvProcessorDisableSplitOnH264AnnexB)); set => this.SetPropertyValueOptional(value, nameof(this.FlvProcessorDisableSplitOnH264AnnexB)); }
+
+        /// <summary>
+        /// 是否在视频文件写入直播信息 metadata
+        /// </summary>
+        public bool FlvWriteMetadata { get => this.GetPropertyValue<bool>(); set => this.SetPropertyValue(value); }
+        public bool HasFlvWriteMetadata { get => this.GetPropertyHasValue(nameof(this.FlvWriteMetadata)); set => this.SetPropertyHasValue<bool>(value, nameof(this.FlvWriteMetadata)); }
+        [JsonProperty(nameof(FlvWriteMetadata)), EditorBrowsable(EditorBrowsableState.Never)]
+        public Optional<bool> OptionalFlvWriteMetadata { get => this.GetPropertyValueOptional<bool>(nameof(this.FlvWriteMetadata)); set => this.SetPropertyValueOptional(value, nameof(this.FlvWriteMetadata)); }
+
+        /// <summary>
+        /// 不录制的标题匹配正则
+        /// </summary>
+        public string? TitleFilterPatterns { get => this.GetPropertyValue<string>(); set => this.SetPropertyValue(value); }
+        public bool HasTitleFilterPatterns { get => this.GetPropertyHasValue(nameof(this.TitleFilterPatterns)); set => this.SetPropertyHasValue<string>(value, nameof(this.TitleFilterPatterns)); }
+        [JsonProperty(nameof(TitleFilterPatterns)), EditorBrowsable(EditorBrowsableState.Never)]
+        public Optional<string?> OptionalTitleFilterPatterns { get => this.GetPropertyValueOptional<string>(nameof(this.TitleFilterPatterns)); set => this.SetPropertyValueOptional(value, nameof(this.TitleFilterPatterns)); }
+
+        /// <summary>
         /// WebhookV1
         /// </summary>
         public string? WebHookUrls { get => this.GetPropertyValue<string>(); set => this.SetPropertyValue(value); }
@@ -370,7 +441,7 @@ namespace BililiveRecorder.Core.Config.V3
         public Optional<uint> OptionalTimingCheckInterval { get => this.GetPropertyValueOptional<uint>(nameof(this.TimingCheckInterval)); set => this.SetPropertyValueOptional(value, nameof(this.TimingCheckInterval)); }
 
         /// <summary>
-        /// 请求B站API超时时间 毫秒
+        /// 请求mikufansAPI超时时间 毫秒
         /// </summary>
         public uint TimingApiTimeout { get => this.GetPropertyValue<uint>(); set => this.SetPropertyValue(value); }
         public bool HasTimingApiTimeout { get => this.GetPropertyHasValue(nameof(this.TimingApiTimeout)); set => this.SetPropertyHasValue<uint>(value, nameof(this.TimingApiTimeout)); }
@@ -434,6 +505,14 @@ namespace BililiveRecorder.Core.Config.V3
         public Optional<DanmakuTransportMode> OptionalDanmakuTransport { get => this.GetPropertyValueOptional<DanmakuTransportMode>(nameof(this.DanmakuTransport)); set => this.SetPropertyValueOptional(value, nameof(this.DanmakuTransport)); }
 
         /// <summary>
+        /// 使用直播间主播的uid进行弹幕服务器认证
+        /// </summary>
+        public bool DanmakuAuthenticateWithStreamerUid { get => this.GetPropertyValue<bool>(); set => this.SetPropertyValue(value); }
+        public bool HasDanmakuAuthenticateWithStreamerUid { get => this.GetPropertyHasValue(nameof(this.DanmakuAuthenticateWithStreamerUid)); set => this.SetPropertyHasValue<bool>(value, nameof(this.DanmakuAuthenticateWithStreamerUid)); }
+        [JsonProperty(nameof(DanmakuAuthenticateWithStreamerUid)), EditorBrowsable(EditorBrowsableState.Never)]
+        public Optional<bool> OptionalDanmakuAuthenticateWithStreamerUid { get => this.GetPropertyValueOptional<bool>(nameof(this.DanmakuAuthenticateWithStreamerUid)); set => this.SetPropertyValueOptional(value, nameof(this.DanmakuAuthenticateWithStreamerUid)); }
+
+        /// <summary>
         /// 是否使用系统代理
         /// </summary>
         public bool NetworkTransportUseSystemProxy { get => this.GetPropertyValue<bool>(); set => this.SetPropertyValue(value); }
@@ -448,6 +527,14 @@ namespace BililiveRecorder.Core.Config.V3
         public bool HasNetworkTransportAllowedAddressFamily { get => this.GetPropertyHasValue(nameof(this.NetworkTransportAllowedAddressFamily)); set => this.SetPropertyHasValue<AllowedAddressFamily>(value, nameof(this.NetworkTransportAllowedAddressFamily)); }
         [JsonProperty(nameof(NetworkTransportAllowedAddressFamily)), EditorBrowsable(EditorBrowsableState.Never)]
         public Optional<AllowedAddressFamily> OptionalNetworkTransportAllowedAddressFamily { get => this.GetPropertyValueOptional<AllowedAddressFamily>(nameof(this.NetworkTransportAllowedAddressFamily)); set => this.SetPropertyValueOptional(value, nameof(this.NetworkTransportAllowedAddressFamily)); }
+
+        /// <summary>
+        /// 绑定的网络接口或IP地址
+        /// </summary>
+        public string? NetworkTransportBindAddress { get => this.GetPropertyValue<string>(); set => this.SetPropertyValue(value); }
+        public bool HasNetworkTransportBindAddress { get => this.GetPropertyHasValue(nameof(this.NetworkTransportBindAddress)); set => this.SetPropertyHasValue<string>(value, nameof(this.NetworkTransportBindAddress)); }
+        [JsonProperty(nameof(NetworkTransportBindAddress)), EditorBrowsable(EditorBrowsableState.Never)]
+        public Optional<string?> OptionalNetworkTransportBindAddress { get => this.GetPropertyValueOptional<string>(nameof(this.NetworkTransportBindAddress)); set => this.SetPropertyValueOptional(value, nameof(this.NetworkTransportBindAddress)); }
 
         /// <summary>
         /// 自定义脚本
@@ -470,6 +557,8 @@ namespace BililiveRecorder.Core.Config.V3
 
         public uint CuttingNumber => 100;
 
+        public bool CuttingByTitle => false;
+
         public bool RecordDanmaku => false;
 
         public bool RecordDanmakuRaw => false;
@@ -482,11 +571,17 @@ namespace BililiveRecorder.Core.Config.V3
 
         public bool SaveStreamCover => false;
 
-        public string RecordingQuality => @"10000";
+        public string RecordingQuality => @"avc10000,hevc10000";
 
-        public string FileNameRecordTemplate => @"{{ roomId }}-{{ name }}/录制-{{ roomId }}-{{ ""now"" | time_zone: ""Asia/Shanghai"" | format_date: ""yyyyMMdd-HHmmss-fff"" }}-{{ title }}.flv";
+        public string FileNameRecordTemplate => @"{{ roomId }}-{{ name | unescape }}/录制-{{ roomId }}-{{ ""now"" | time_zone: ""Asia/Shanghai"" | format_date: ""yyyyMMdd-HHmmss-fff"" }}-{{ title | unescape }}.flv";
 
         public bool FlvProcessorSplitOnScriptTag => false;
+
+        public bool FlvProcessorDisableSplitOnH264AnnexB => false;
+
+        public bool FlvWriteMetadata => true;
+
+        public string TitleFilterPatterns => @"";
 
         public string WebHookUrls => @"";
 
@@ -500,7 +595,7 @@ namespace BililiveRecorder.Core.Config.V3
 
         public string LiveApiHost => @"https://api.live.bilibili.com";
 
-        public uint TimingCheckInterval => 600;
+        public uint TimingCheckInterval => 180;
 
         public uint TimingApiTimeout => 10000;
 
@@ -516,11 +611,15 @@ namespace BililiveRecorder.Core.Config.V3
 
         public uint RecordDanmakuFlushInterval => 20;
 
-        public DanmakuTransportMode DanmakuTransport => DanmakuTransportMode.Random;
+        public DanmakuTransportMode DanmakuTransport => DanmakuTransportMode.Wss;
+
+        public bool DanmakuAuthenticateWithStreamerUid => false;
 
         public bool NetworkTransportUseSystemProxy => false;
 
         public AllowedAddressFamily NetworkTransportAllowedAddressFamily => AllowedAddressFamily.Any;
+
+        public string NetworkTransportBindAddress => @"";
 
         public string UserScript => @"";
 

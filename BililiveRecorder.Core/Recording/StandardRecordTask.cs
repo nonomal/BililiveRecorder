@@ -10,6 +10,7 @@ using BililiveRecorder.Core.Config;
 using BililiveRecorder.Core.Event;
 using BililiveRecorder.Core.ProcessingRules;
 using BililiveRecorder.Core.Scripting;
+using BililiveRecorder.Core.Templating;
 using BililiveRecorder.Flv;
 using BililiveRecorder.Flv.Amf;
 using BililiveRecorder.Flv.Parser;
@@ -64,7 +65,8 @@ namespace BililiveRecorder.Core.Recording
             this.pipeline = builder
                 .ConfigureServices(services => services.AddSingleton(new ProcessingPipelineSettings
                 {
-                    SplitOnScriptTag = room.RoomConfig.FlvProcessorSplitOnScriptTag
+                    SplitOnScriptTag = room.RoomConfig.FlvProcessorSplitOnScriptTag,
+                    DisableSplitOnH264AnnexB = room.RoomConfig.FlvProcessorDisableSplitOnH264AnnexB,
                 }))
                 .AddRule(this.statsRule)
                 .AddRule(this.splitFileRule)
@@ -82,6 +84,8 @@ namespace BililiveRecorder.Core.Recording
                     FullPath = paths.fullPath,
                     RelativePath = paths.relativePath,
                     FileOpenTime = DateTimeOffset.Now,
+                    Qn = this.qn,
+                    QnDescription = StreamQualityNumber.MapToString(this.qn),
                 };
                 this.OnRecordFileOpening(e);
                 return e;
@@ -151,7 +155,11 @@ namespace BililiveRecorder.Core.Recording
             finally
             {
                 this.timer.Stop();
+#if NET6_0_OR_GREATER
+                await stream.DisposeAsync().ConfigureAwait(false);
+#else
                 stream.Dispose();
+#endif
                 await writer.CompleteAsync(exception).ConfigureAwait(false);
             }
         }
@@ -198,8 +206,8 @@ namespace BililiveRecorder.Core.Recording
             catch (UnsupportedCodecException ex)
             {
                 // 直播流不是 H.264
-                this.logger.Warning(ex, "不支持此直播流的视频编码格式（只支持 H.264），本场直播不再自动启动录制。");
-                this.room.StopRecord(); // 停止自动重试
+                this.logger.Warning(ex, "不支持此直播流的视频编码格式（只支持 H.264），下次录制会尝试使用原始模式录制");
+                this.room.MarkNextRecordShouldUseRawMode();
             }
             catch (OperationCanceledException ex)
             {
@@ -229,13 +237,16 @@ namespace BililiveRecorder.Core.Recording
 
         private void Writer_BeforeScriptTagWrite(ScriptTagBody scriptTagBody)
         {
+            if (!this.room.RoomConfig.FlvWriteMetadata)
+                return;
+
             if (scriptTagBody.Values.Count == 2 && scriptTagBody.Values[1] is ScriptDataEcmaArray value)
             {
                 var now = DateTimeOffset.Now;
                 value["Title"] = (ScriptDataString)this.room.Title;
                 value["Artist"] = (ScriptDataString)$"{this.room.Name} ({this.room.RoomConfig.RoomId})";
                 value["Comment"] = (ScriptDataString)
-                    ($"B站直播间 {this.room.RoomConfig.RoomId} 的直播录像\n" +
+                    ($"mikufans直播间 {this.room.RoomConfig.RoomId} 的直播录像\n" +
                     $"主播名: {this.room.Name}\n" +
                     $"直播标题: {this.room.Title}\n" +
                     $"直播分区: {this.room.AreaNameParent}·{this.room.AreaNameChild}\n" +
@@ -243,11 +254,11 @@ namespace BililiveRecorder.Core.Recording
                     $"直播服务器:\n" +
                     $"{this.streamHostFull}\n" +
                     $"\n" +
-                    $"使用 B站录播姬 录制 https://rec.danmuji.org\n" +
+                    $"使用 mikufans录播姬 录制 https://rec.danmuji.org\n" +
                     $"录播姬版本: {GitVersionInformation.FullSemVer}");
                 value["BililiveRecorder"] = new ScriptDataEcmaArray
                 {
-                    ["RecordedBy"] = (ScriptDataString)"BililiveRecorder B站录播姬",
+                    ["RecordedBy"] = (ScriptDataString)"BililiveRecorder mikufans录播姬",
                     ["RecordedFrom"] = (ScriptDataString)(this.streamHost ?? string.Empty),
                     ["StreamServers"] = (ScriptDataString)(this.streamHostFull ?? string.Empty),
                     ["RecorderVersion"] = (ScriptDataString)GitVersionInformation.InformationalVersion,
@@ -262,7 +273,7 @@ namespace BililiveRecorder.Core.Recording
             }
         }
 
-        private void StatsRule_StatsUpdated(object sender, RecordingStatsEventArgs e)
+        private void StatsRule_StatsUpdated(object? sender, RecordingStatsEventArgs e)
         {
             switch (this.room.RoomConfig.CuttingMode)
             {
@@ -297,13 +308,13 @@ namespace BililiveRecorder.Core.Recording
                 var paths = this.task.CreateFileName();
 
                 try
-                { _ = Directory.CreateDirectory(Path.GetDirectoryName(paths.fullPath)); }
+                { _ = Directory.CreateDirectory(Path.GetDirectoryName(paths.fullPath)!); }
                 catch (Exception) { }
 
                 this.last_path = paths.fullPath;
                 var state = this.OnNewFile(paths);
 
-                var stream = new FileStream(paths.fullPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read | FileShare.Delete);
+                var stream = new FileStream(paths.fullPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read);
                 return (stream, state);
             }
 
@@ -314,7 +325,7 @@ namespace BililiveRecorder.Core.Recording
                     : Path.ChangeExtension(this.last_path, "txt");
 
                 try
-                { _ = Directory.CreateDirectory(Path.GetDirectoryName(path)); }
+                { _ = Directory.CreateDirectory(Path.GetDirectoryName(path)!); }
                 catch (Exception) { }
 
                 var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read);

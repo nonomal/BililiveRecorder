@@ -1,10 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.CommandLine;
+using System.CommandLine.Builder;
 using System.CommandLine.NamingConventionBinder;
+using System.CommandLine.Parsing;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Runtime.InteropServices;
 using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -13,6 +17,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using BililiveRecorder.Cli.Configure;
 using BililiveRecorder.Core;
+using BililiveRecorder.Core.Api;
 using BililiveRecorder.Core.Config;
 using BililiveRecorder.Core.Config.V3;
 using BililiveRecorder.DependencyInjection;
@@ -38,6 +43,15 @@ namespace BililiveRecorder.Cli
     {
         private static int Main(string[] args)
         {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("BREC_SKIP_DISABLE_QUICK_EDIT")))
+            {
+                ConsoleModeHelper.SetQuickEditMode(false);
+            }
+
+            DistributedContextPropagator.Current = DistributedContextPropagator.CreateNoOutputPropagator();
+            AppContext.SetSwitch("System.Net.Http.EnableActivityPropagation", false);
+
             RootCommand root;
 
             using (var entrypointLogger = BuildLogger(LogEventLevel.Fatal, LogEventLevel.Verbose))
@@ -53,6 +67,7 @@ namespace BililiveRecorder.Cli
                         new Option<string?>(new []{ "--http-bind", "--bind", "-b" }, () => null, "Bind address for http service"),
                         new Option<string?>(new []{ "--http-basic-user" }, () => null, "Web interface username"),
                         new Option<string?>(new []{ "--http-basic-pass" }, () => null, "Web interface password"),
+                        new Option<bool>(new []{ "--http-open-access" }, () => false, "Allow open access from the internet"),
                         new Option<bool>(new []{ "--enable-file-browser" }, () => true, "Enable file browser located at '/file'"),
                         new Option<LogEventLevel>(new []{ "--loglevel", "--log", "-l" }, () => LogEventLevel.Information, "Minimal log level output to console"),
                         new Option<LogEventLevel>(new []{ "--logfilelevel", "--flog" }, () => LogEventLevel.Debug, "Minimal log level output to file"),
@@ -71,6 +86,7 @@ namespace BililiveRecorder.Cli
                         new Option<string?>(new []{ "--http-bind", "--bind", "-b" }, () => null, "Bind address for http service"),
                         new Option<string?>(new []{ "--http-basic-user" }, () => null, "Web interface username"),
                         new Option<string?>(new []{ "--http-basic-pass" }, () => null, "Web interface password"),
+                        new Option<bool>(new []{ "--http-open-access" }, () => false, "Allow open access from the internet"),
                         new Option<bool>(new []{ "--enable-file-browser" }, () => true, "Enable file browser located at '/file'"),
                         new Option<LogEventLevel>(new []{ "--loglevel", "--log", "-l" }, () => LogEventLevel.Information, "Minimal log level output to console"),
                         new Option<LogEventLevel>(new []{ "--logfilelevel", "--flog" }, () => LogEventLevel.Debug, "Minimal log level output to file"),
@@ -106,7 +122,41 @@ namespace BililiveRecorder.Cli
                 }
             }
 
-            return root.Invoke(args);
+            var builder = new CommandLineBuilder(root);
+
+            builder.AddMiddleware(async (context, next) =>
+            {
+                var isToolCommand = false;
+                var tct = typeof(ToolCommand);
+                var cr = context.ParseResult.CommandResult;
+                while (cr is not null)
+                {
+                    if (cr.Command.GetType() == tct)
+                    {
+                        isToolCommand = true;
+                        break;
+                    }
+                    cr = cr.Parent as CommandResult;
+                }
+                cr = null;
+
+                if (isToolCommand)
+                {
+                    // hack to enable logging for tool commands
+                    using var logger = BuildLogger(LogEventLevel.Fatal, LogEventLevel.Verbose);
+                    Log.Logger = logger;
+                    await next(context);
+                    return;
+                }
+                else
+                {
+                    await next(context);
+                }
+            });
+
+            builder.UseDefaults();
+            var parser = builder.Build();
+            return parser.Invoke(args);
         }
 
         private static async Task<int> RunConfigModeAsync(RunModeArguments args)
@@ -122,8 +172,17 @@ namespace BililiveRecorder.Cli
 
             if (args.ConfigOverride is not null)
             {
-                logger.Information("Using config from {ConfigOverride}", args.ConfigOverride);
-                config = ConfigParser.LoadFromFile(args.ConfigOverride);
+                if (Directory.Exists(args.ConfigOverride))
+                {
+                    var overrideFile = Path.Combine(args.ConfigOverride, "config.json");
+                    logger.Information("Using config from {ConfigOverride}", overrideFile);
+                    config = ConfigParser.LoadFromFile(overrideFile);
+                }
+                else
+                {
+                    logger.Information("Using config from {ConfigOverride}", args.ConfigOverride);
+                    config = ConfigParser.LoadFromFile(args.ConfigOverride);
+                }
             }
             else
             {
@@ -215,9 +274,17 @@ namespace BililiveRecorder.Cli
 
                         services.AddSingleton(new BililiveRecorderFileExplorerSettings(sharedArguments.EnableFileBrowser));
 
+                        sharedArguments.HttpBasicUser ??= Environment.GetEnvironmentVariable("BREC_HTTP_BASIC_USER");
+                        sharedArguments.HttpBasicPass ??= Environment.GetEnvironmentVariable("BREC_HTTP_BASIC_PASS");
+
                         if (sharedArguments.HttpBasicUser is not null || sharedArguments.HttpBasicPass is not null)
                         {
                             services.AddSingleton(new BasicAuthCredential(sharedArguments.HttpBasicUser ?? string.Empty, sharedArguments.HttpBasicPass ?? string.Empty));
+                        }
+
+                        if (sharedArguments.HttpOpenAccess || Environment.GetEnvironmentVariable("BREC_HTTP_OPEN_ACCESS") is not null)
+                        {
+                            services.AddSingleton(new DisableOpenAccessWarningConfig());
                         }
                     })
                     .ConfigureWebHost(webBuilder =>
@@ -246,7 +313,7 @@ namespace BililiveRecorder.Cli
                                 {
                                     listenOptions.UseHttps(LoadCertificate(sharedArguments, logger) ?? GenerateSelfSignedCertificate(logger), https =>
                                     {
-                                        https.SslProtocols = SslProtocols.Tls11 | SslProtocols.Tls12 | SslProtocols.Tls13;
+                                        https.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
                                     });
                                 }
                             }
@@ -381,7 +448,7 @@ namespace BililiveRecorder.Cli
 
                 {
                     using var key = RSA.Create();
-                    var req = new CertificateRequest("CN=B站录播姬", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+                    var req = new CertificateRequest("CN=mikufans录播姬", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
 
                     var subjectAltName = new SubjectAlternativeNameBuilder();
                     subjectAltName.AddDnsName("BililiveRecorder");
@@ -450,10 +517,10 @@ namespace BililiveRecorder.Cli
                 .Enrich.WithProcessId()
                 .Enrich.WithThreadId()
                 .Enrich.WithThreadName()
-                .Enrich.FromLogContext()
                 .Enrich.WithExceptionDetails()
                 .Destructure.AsScalar<IPAddress>()
                 .Destructure.AsScalar<ProcessingComment>()
+                .Destructure.AsScalar<StreamCodecQn>()
                 .Destructure.ByTransforming<Flv.Xml.XmlFlvFile.XmlFlvFileMeta>(x => new
                 {
                     x.Version,
@@ -513,6 +580,8 @@ namespace BililiveRecorder.Cli
 
             public string? HttpBasicPass { get; set; } = null;
 
+            public bool HttpOpenAccess { get; set; } = false;
+
             public bool EnableFileBrowser { get; set; }
 
             public string? CertPemPath { get; set; } = null;
@@ -560,6 +629,73 @@ namespace BililiveRecorder.Cli
                 RawData = 1 << 4,
                 All = Danmaku | SuperChat | Guard | Gift | RawData
             }
+        }
+
+        private static class ConsoleModeHelper
+        {
+            internal static bool SetQuickEditMode(bool enable = true)
+            {
+                return SetMode(ConsoleModes.ENABLE_QUICK_EDIT_MODE, enable);
+            }
+
+            private static bool SetMode(ConsoleModes mode, bool enable = true)
+            {
+                IntPtr consoleHandle = GetStdHandle(STD_INPUT_HANDLE);
+                if (consoleHandle == INVALID_HANDLE_VALUE)
+                {
+                    return false;
+                }
+
+                uint consoleMode;
+                if (!GetConsoleMode(consoleHandle, out consoleMode))
+                {
+                    return false;
+                }
+
+                if (enable)
+                {
+                    consoleMode |= (uint)mode;
+                }
+                else
+                {
+                    consoleMode &= ~(uint)mode;
+                }
+
+                return SetConsoleMode(consoleHandle, consoleMode);
+            }
+
+            const int STD_INPUT_HANDLE = -10;
+            static readonly IntPtr INVALID_HANDLE_VALUE = new IntPtr(-1);
+
+            [Flags]
+            private enum ConsoleModes : uint
+            {
+                ENABLE_PROCESSED_INPUT = 0x0001,
+                ENABLE_LINE_INPUT = 0x0002,
+                ENABLE_ECHO_INPUT = 0x0004,
+                ENABLE_WINDOW_INPUT = 0x0008,
+                ENABLE_MOUSE_INPUT = 0x0010,
+                ENABLE_INSERT_MODE = 0x0020,
+                ENABLE_QUICK_EDIT_MODE = 0x0040,
+                ENABLE_EXTENDED_FLAGS = 0x0080,
+                ENABLE_AUTO_POSITION = 0x0100,
+                ENABLE_VIRTUAL_TERMINAL_INPUT = 0x0200,
+
+                ENABLE_PROCESSED_OUTPUT = 0x0001,
+                ENABLE_WRAP_AT_EOL_OUTPUT = 0x0002,
+                ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004,
+                DISABLE_NEWLINE_AUTO_RETURN = 0x0008,
+                ENABLE_LVB_GRID_WORLDWIDE = 0x0010
+            }
+
+            [DllImport("kernel32.dll", SetLastError = true)]
+            private static extern IntPtr GetStdHandle(int nStdHandle);
+
+            [DllImport("kernel32.dll", SetLastError = true)]
+            private static extern bool GetConsoleMode(IntPtr hConsoleHandle, out uint lpMode);
+
+            [DllImport("kernel32.dll", SetLastError = true)]
+            private static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
         }
     }
 }

@@ -1,36 +1,94 @@
+using System;
 using System.Net;
 using System.Net.Http;
+using System.Text;
 using Jint;
 using Jint.Native;
 using Jint.Native.Array;
-using Jint.Native.Function;
 using Jint.Native.Object;
 using Jint.Runtime;
+using Jint.Runtime.Interop;
 
 namespace BililiveRecorder.Core.Scripting.Runtime
 {
-    internal class JintFetchSync : FunctionInstance
+    internal static class JintFetchSync
     {
-        private static readonly JsString functionName = new JsString("fetchSync");
-
-        public JintFetchSync(Engine engine) : base(engine, engine.Realm, functionName)
+        public static ClrFunction Create(Engine engine)
         {
+            return new ClrFunction(engine, "fetchSync", (thisObj, args) => CallImpl(engine, args));
         }
 
-        protected override JsValue Call(JsValue thisObject, JsValue[] arguments)
+        private static JsValue CallImpl(Engine engine, JsValue[] arguments)
         {
             if (arguments.Length == 0)
-                throw new JavaScriptException(this._engine.Realm.Intrinsics.Error, "1 argument required, but only 0 present.");
+                throw new JavaScriptException(engine.Intrinsics.Error, "1 argument required, but only 0 present.");
 
             if (arguments[0] is not JsString urlString)
-                throw new JavaScriptException(this._engine.Realm.Intrinsics.Error, "Only url string is supported as the 1st argument.");
+                throw new JavaScriptException(engine.Intrinsics.Error, "Only url string is supported as the 1st argument.");
 
             ObjectInstance? initObject = null;
             if (arguments.Length > 1)
                 initObject = arguments[1] is not ObjectInstance arg1
-                    ? throw new JavaScriptException(this._engine.Realm.Intrinsics.Error, "The provided value is not of type 'RequestInit'.")
+                    ? throw new JavaScriptException(engine.Intrinsics.Error, "The provided value is not of type 'RequestInit'.")
                     : arg1;
+            try
+            {
+                return Run(engine, urlString, initObject);
+            }
+            catch (Exception ex)
+            {
+                var b = new StringBuilder("Request failed: ");
+                FormatClrException(b, ex);
 
+                throw new JavaScriptException(engine.Intrinsics.Error, b.ToString());
+            }
+        }
+
+        private static void FormatClrException(StringBuilder b, Exception ex)
+        {
+start:
+            if (ex is AggregateException ae)
+            {
+                if (ae.InnerExceptions.Count == 0)
+                {
+                    goto treatAsNormalException;
+                }
+
+                if (ae.InnerExceptions.Count == 1)
+                {
+                    // the following is equivalent of calling
+                    // FormatClrException(b, ae.InnerExceptions[0]); return;
+                    ex = ae.InnerExceptions[0];
+                    goto start;
+                }
+
+                // there are at least 2 exceptions
+                b.Append(ae.Message);
+                b.Append(": [");
+                FormatClrException(b, ae.InnerExceptions[0]);
+                for (var i = 1; i < ae.InnerExceptions.Count; i++)
+                {
+                    b.Append(',');
+                    FormatClrException(b, ae.InnerExceptions[i]);
+                }
+                b.Append(']');
+                return;
+            }
+
+treatAsNormalException:
+
+            b.Append(ex.Message);
+
+            if (ex.InnerException != null)
+            {
+                b.Append(" (");
+                FormatClrException(b, ex.InnerException);
+                b.Append(')');
+            }
+        }
+
+        private static JsObject Run(Engine engine, JsString urlString, ObjectInstance? initObject)
+        {
             var handler = new HttpClientHandler
             {
                 UseCookies = false,
@@ -55,13 +113,13 @@ namespace BililiveRecorder.Core.Scripting.Runtime
                     switch (key.AsString())
                     {
                         case "body":
-                            this.SetRequestBody(requestMessage, value.Value);
+                            SetRequestBody(engine, requestMessage, value.Value);
                             break;
                         case "headers":
-                            this.SetRequestHeader(requestMessage, value.Value);
+                            SetRequestHeader(engine, requestMessage, value.Value);
                             break;
                         case "method":
-                            this.SetRequestMethod(requestMessage, value.Value);
+                            SetRequestMethod(requestMessage, value.Value);
                             break;
                         case "redirect":
                             {
@@ -81,7 +139,7 @@ namespace BililiveRecorder.Core.Scripting.Runtime
                                         throwOnRedirect = true;
                                         break;
                                     default:
-                                        throw new JavaScriptException(this._engine.Realm.Intrinsics.Error, $"'{redirect}' is not a valid value for 'redirect'.");
+                                        throw new JavaScriptException(engine.Intrinsics.Error, $"'{redirect}' is not a valid value for 'redirect'.");
                                 }
                                 break;
                             }
@@ -111,17 +169,17 @@ namespace BililiveRecorder.Core.Scripting.Runtime
 
             if (throwOnRedirect && (resp.StatusCode is (HttpStatusCode)301 or (HttpStatusCode)302 or (HttpStatusCode)303 or (HttpStatusCode)307 or (HttpStatusCode)308))
             {
-                throw new JavaScriptException(this._engine.Realm.Intrinsics.Error, $"'Failed to fetch, Status code: {(int)resp.StatusCode}.");
+                throw new JavaScriptException(engine.Intrinsics.Error, $"'Failed to fetch, Status code: {(int)resp.StatusCode}.");
             }
 
             var respString = resp.Content.ReadAsStringAsync().Result;
 #pragma warning restore VSTHRD002 // Avoid problematic synchronous waits
 
-            var respHeaders = new ObjectInstance(this._engine);
+            var respHeaders = new JsObject(engine);
             foreach (var respHeader in resp.Headers)
                 respHeaders.Set(respHeader.Key, string.Join(", ", respHeader.Value));
 
-            var result = new ObjectInstance(this._engine);
+            var result = new JsObject(engine);
             result.Set("body", respString);
             result.Set("headers", respHeaders);
             result.Set("ok", resp.IsSuccessStatusCode);
@@ -130,7 +188,7 @@ namespace BililiveRecorder.Core.Scripting.Runtime
             return result;
         }
 
-        private void SetRequestMethod(HttpRequestMessage requestMessage, JsValue value)
+        private static void SetRequestMethod(HttpRequestMessage requestMessage, JsValue value)
         {
             if (value is JsNull or JsUndefined)
                 return;
@@ -149,7 +207,7 @@ namespace BililiveRecorder.Core.Scripting.Runtime
             };
         }
 
-        private void SetRequestHeader(HttpRequestMessage requestMessage, JsValue value)
+        private static void SetRequestHeader(Engine engine, HttpRequestMessage requestMessage, JsValue value)
         {
             if (value is JsNull or JsUndefined)
                 return;
@@ -165,12 +223,12 @@ namespace BililiveRecorder.Core.Scripting.Runtime
                     requestMessage.Headers.TryAddWithoutValidation(headerName, headerValue);
                 }
             }
-            else if (value is ArrayInstance arrayInstance)
+            else if (value is JsArray arrayInstance)
             {
-                foreach (ArrayInstance header in arrayInstance)
+                foreach (var item in arrayInstance)
                 {
-                    if (header.Length != 2)
-                        throw new JavaScriptException(this._engine.Realm.Intrinsics.Error, "The header object must contain exactly two elements.");
+                    if (item is not JsArray header || header.Length != 2)
+                        throw new JavaScriptException(engine.Intrinsics.Error, "The header object must contain exactly two elements.");
 
                     var headerName = header[0].ToString();
                     var headerValue = header[1].ToString();
@@ -181,17 +239,17 @@ namespace BililiveRecorder.Core.Scripting.Runtime
             }
             else
             {
-                throw new JavaScriptException(this._engine.Realm.Intrinsics.Error, "Only object or array is supported for 'header'.");
+                throw new JavaScriptException(engine.Intrinsics.Error, "Only object or array is supported for 'header'.");
             }
         }
 
-        private void SetRequestBody(HttpRequestMessage requestMessage, JsValue value)
+        private static void SetRequestBody(Engine engine, HttpRequestMessage requestMessage, JsValue value)
         {
             if (value is JsNull or JsUndefined)
                 return;
 
             if (value is not JsString jsString)
-                throw new JavaScriptException(this._engine.Realm.Intrinsics.Error, "Only string is supported for 'body'.");
+                throw new JavaScriptException(engine.Intrinsics.Error, "Only string is supported for 'body'.");
 
             requestMessage.Content = new StringContent(jsString.ToString());
         }

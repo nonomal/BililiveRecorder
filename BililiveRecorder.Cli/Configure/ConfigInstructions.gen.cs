@@ -17,6 +17,7 @@ namespace BililiveRecorder.Cli.Configure
         RecordMode,
         CuttingMode,
         CuttingNumber,
+        CuttingByTitle,
         RecordDanmaku,
         RecordDanmakuRaw,
         RecordDanmakuSuperChat,
@@ -26,6 +27,9 @@ namespace BililiveRecorder.Cli.Configure
         RecordingQuality,
         FileNameRecordTemplate,
         FlvProcessorSplitOnScriptTag,
+        FlvProcessorDisableSplitOnH264AnnexB,
+        FlvWriteMetadata,
+        TitleFilterPatterns,
         WebHookUrls,
         WebHookUrlsV2,
         WpfShowTitleAndArea,
@@ -41,8 +45,10 @@ namespace BililiveRecorder.Cli.Configure
         TimingWatchdogTimeout,
         RecordDanmakuFlushInterval,
         DanmakuTransport,
+        DanmakuAuthenticateWithStreamerUid,
         NetworkTransportUseSystemProxy,
         NetworkTransportAllowedAddressFamily,
+        NetworkTransportBindAddress,
         UserScript
     }
     public enum RoomConfigProperties
@@ -54,6 +60,7 @@ namespace BililiveRecorder.Cli.Configure
         RecordMode,
         CuttingMode,
         CuttingNumber,
+        CuttingByTitle,
         RecordDanmaku,
         RecordDanmakuRaw,
         RecordDanmakuSuperChat,
@@ -61,7 +68,9 @@ namespace BililiveRecorder.Cli.Configure
         RecordDanmakuGuard,
         SaveStreamCover,
         RecordingQuality,
-        FlvProcessorSplitOnScriptTag
+        FlvProcessorSplitOnScriptTag,
+        FlvProcessorDisableSplitOnH264AnnexB,
+        TitleFilterPatterns
     }
     public static class ConfigInstructions
     {
@@ -73,6 +82,7 @@ namespace BililiveRecorder.Cli.Configure
             GlobalConfig.Add(GlobalConfigProperties.RecordMode, new ConfigInstruction<GlobalConfig, RecordMode>(config => config.HasRecordMode = false, (config, value) => config.RecordMode = value) { Name = "RecordMode", CanBeOptional = true });
             GlobalConfig.Add(GlobalConfigProperties.CuttingMode, new ConfigInstruction<GlobalConfig, CuttingMode>(config => config.HasCuttingMode = false, (config, value) => config.CuttingMode = value) { Name = "CuttingMode", CanBeOptional = true });
             GlobalConfig.Add(GlobalConfigProperties.CuttingNumber, new ConfigInstruction<GlobalConfig, uint>(config => config.HasCuttingNumber = false, (config, value) => config.CuttingNumber = value) { Name = "CuttingNumber", CanBeOptional = true });
+            GlobalConfig.Add(GlobalConfigProperties.CuttingByTitle, new ConfigInstruction<GlobalConfig, bool>(config => config.HasCuttingByTitle = false, (config, value) => config.CuttingByTitle = value) { Name = "CuttingByTitle", CanBeOptional = true });
             GlobalConfig.Add(GlobalConfigProperties.RecordDanmaku, new ConfigInstruction<GlobalConfig, bool>(config => config.HasRecordDanmaku = false, (config, value) => config.RecordDanmaku = value) { Name = "RecordDanmaku", CanBeOptional = true });
             GlobalConfig.Add(GlobalConfigProperties.RecordDanmakuRaw, new ConfigInstruction<GlobalConfig, bool>(config => config.HasRecordDanmakuRaw = false, (config, value) => config.RecordDanmakuRaw = value) { Name = "RecordDanmakuRaw", CanBeOptional = true });
             GlobalConfig.Add(GlobalConfigProperties.RecordDanmakuSuperChat, new ConfigInstruction<GlobalConfig, bool>(config => config.HasRecordDanmakuSuperChat = false, (config, value) => config.RecordDanmakuSuperChat = value) { Name = "RecordDanmakuSuperChat", CanBeOptional = true });
@@ -82,6 +92,9 @@ namespace BililiveRecorder.Cli.Configure
             GlobalConfig.Add(GlobalConfigProperties.RecordingQuality, new ConfigInstruction<GlobalConfig, string>(config => config.HasRecordingQuality = false, (config, value) => config.RecordingQuality = value) { Name = "RecordingQuality", CanBeOptional = true });
             GlobalConfig.Add(GlobalConfigProperties.FileNameRecordTemplate, new ConfigInstruction<GlobalConfig, string>(config => config.HasFileNameRecordTemplate = false, (config, value) => config.FileNameRecordTemplate = value) { Name = "FileNameRecordTemplate", CanBeOptional = true });
             GlobalConfig.Add(GlobalConfigProperties.FlvProcessorSplitOnScriptTag, new ConfigInstruction<GlobalConfig, bool>(config => config.HasFlvProcessorSplitOnScriptTag = false, (config, value) => config.FlvProcessorSplitOnScriptTag = value) { Name = "FlvProcessorSplitOnScriptTag", CanBeOptional = true });
+            GlobalConfig.Add(GlobalConfigProperties.FlvProcessorDisableSplitOnH264AnnexB, new ConfigInstruction<GlobalConfig, bool>(config => config.HasFlvProcessorDisableSplitOnH264AnnexB = false, (config, value) => config.FlvProcessorDisableSplitOnH264AnnexB = value) { Name = "FlvProcessorDisableSplitOnH264AnnexB", CanBeOptional = true });
+            GlobalConfig.Add(GlobalConfigProperties.FlvWriteMetadata, new ConfigInstruction<GlobalConfig, bool>(config => config.HasFlvWriteMetadata = false, (config, value) => config.FlvWriteMetadata = value) { Name = "FlvWriteMetadata", CanBeOptional = true });
+            GlobalConfig.Add(GlobalConfigProperties.TitleFilterPatterns, new ConfigInstruction<GlobalConfig, string>(config => config.HasTitleFilterPatterns = false, (config, value) => config.TitleFilterPatterns = value) { Name = "TitleFilterPatterns", CanBeOptional = true });
             GlobalConfig.Add(GlobalConfigProperties.WebHookUrls, new ConfigInstruction<GlobalConfig, string>(config => config.HasWebHookUrls = false, (config, value) => config.WebHookUrls = value) { Name = "WebHookUrls", CanBeOptional = true });
             GlobalConfig.Add(GlobalConfigProperties.WebHookUrlsV2, new ConfigInstruction<GlobalConfig, string>(config => config.HasWebHookUrlsV2 = false, (config, value) => config.WebHookUrlsV2 = value) { Name = "WebHookUrlsV2", CanBeOptional = true });
             GlobalConfig.Add(GlobalConfigProperties.WpfShowTitleAndArea, new ConfigInstruction<GlobalConfig, bool>(config => config.HasWpfShowTitleAndArea = false, (config, value) => config.WpfShowTitleAndArea = value) { Name = "WpfShowTitleAndArea", CanBeOptional = true });
@@ -97,8 +110,10 @@ namespace BililiveRecorder.Cli.Configure
             GlobalConfig.Add(GlobalConfigProperties.TimingWatchdogTimeout, new ConfigInstruction<GlobalConfig, uint>(config => config.HasTimingWatchdogTimeout = false, (config, value) => config.TimingWatchdogTimeout = value) { Name = "TimingWatchdogTimeout", CanBeOptional = true });
             GlobalConfig.Add(GlobalConfigProperties.RecordDanmakuFlushInterval, new ConfigInstruction<GlobalConfig, uint>(config => config.HasRecordDanmakuFlushInterval = false, (config, value) => config.RecordDanmakuFlushInterval = value) { Name = "RecordDanmakuFlushInterval", CanBeOptional = true });
             GlobalConfig.Add(GlobalConfigProperties.DanmakuTransport, new ConfigInstruction<GlobalConfig, DanmakuTransportMode>(config => config.HasDanmakuTransport = false, (config, value) => config.DanmakuTransport = value) { Name = "DanmakuTransport", CanBeOptional = true });
+            GlobalConfig.Add(GlobalConfigProperties.DanmakuAuthenticateWithStreamerUid, new ConfigInstruction<GlobalConfig, bool>(config => config.HasDanmakuAuthenticateWithStreamerUid = false, (config, value) => config.DanmakuAuthenticateWithStreamerUid = value) { Name = "DanmakuAuthenticateWithStreamerUid", CanBeOptional = true });
             GlobalConfig.Add(GlobalConfigProperties.NetworkTransportUseSystemProxy, new ConfigInstruction<GlobalConfig, bool>(config => config.HasNetworkTransportUseSystemProxy = false, (config, value) => config.NetworkTransportUseSystemProxy = value) { Name = "NetworkTransportUseSystemProxy", CanBeOptional = true });
             GlobalConfig.Add(GlobalConfigProperties.NetworkTransportAllowedAddressFamily, new ConfigInstruction<GlobalConfig, AllowedAddressFamily>(config => config.HasNetworkTransportAllowedAddressFamily = false, (config, value) => config.NetworkTransportAllowedAddressFamily = value) { Name = "NetworkTransportAllowedAddressFamily", CanBeOptional = true });
+            GlobalConfig.Add(GlobalConfigProperties.NetworkTransportBindAddress, new ConfigInstruction<GlobalConfig, string>(config => config.HasNetworkTransportBindAddress = false, (config, value) => config.NetworkTransportBindAddress = value) { Name = "NetworkTransportBindAddress", CanBeOptional = true });
             GlobalConfig.Add(GlobalConfigProperties.UserScript, new ConfigInstruction<GlobalConfig, string>(config => config.HasUserScript = false, (config, value) => config.UserScript = value) { Name = "UserScript", CanBeOptional = true });
 
             RoomConfig.Add(RoomConfigProperties.RoomId, new ConfigInstruction<RoomConfig, int>(config => config.HasRoomId = false, (config, value) => config.RoomId = value) { Name = "RoomId", CanBeOptional = false });
@@ -106,6 +121,7 @@ namespace BililiveRecorder.Cli.Configure
             RoomConfig.Add(RoomConfigProperties.RecordMode, new ConfigInstruction<RoomConfig, RecordMode>(config => config.HasRecordMode = false, (config, value) => config.RecordMode = value) { Name = "RecordMode", CanBeOptional = true });
             RoomConfig.Add(RoomConfigProperties.CuttingMode, new ConfigInstruction<RoomConfig, CuttingMode>(config => config.HasCuttingMode = false, (config, value) => config.CuttingMode = value) { Name = "CuttingMode", CanBeOptional = true });
             RoomConfig.Add(RoomConfigProperties.CuttingNumber, new ConfigInstruction<RoomConfig, uint>(config => config.HasCuttingNumber = false, (config, value) => config.CuttingNumber = value) { Name = "CuttingNumber", CanBeOptional = true });
+            RoomConfig.Add(RoomConfigProperties.CuttingByTitle, new ConfigInstruction<RoomConfig, bool>(config => config.HasCuttingByTitle = false, (config, value) => config.CuttingByTitle = value) { Name = "CuttingByTitle", CanBeOptional = true });
             RoomConfig.Add(RoomConfigProperties.RecordDanmaku, new ConfigInstruction<RoomConfig, bool>(config => config.HasRecordDanmaku = false, (config, value) => config.RecordDanmaku = value) { Name = "RecordDanmaku", CanBeOptional = true });
             RoomConfig.Add(RoomConfigProperties.RecordDanmakuRaw, new ConfigInstruction<RoomConfig, bool>(config => config.HasRecordDanmakuRaw = false, (config, value) => config.RecordDanmakuRaw = value) { Name = "RecordDanmakuRaw", CanBeOptional = true });
             RoomConfig.Add(RoomConfigProperties.RecordDanmakuSuperChat, new ConfigInstruction<RoomConfig, bool>(config => config.HasRecordDanmakuSuperChat = false, (config, value) => config.RecordDanmakuSuperChat = value) { Name = "RecordDanmakuSuperChat", CanBeOptional = true });
@@ -114,6 +130,8 @@ namespace BililiveRecorder.Cli.Configure
             RoomConfig.Add(RoomConfigProperties.SaveStreamCover, new ConfigInstruction<RoomConfig, bool>(config => config.HasSaveStreamCover = false, (config, value) => config.SaveStreamCover = value) { Name = "SaveStreamCover", CanBeOptional = true });
             RoomConfig.Add(RoomConfigProperties.RecordingQuality, new ConfigInstruction<RoomConfig, string>(config => config.HasRecordingQuality = false, (config, value) => config.RecordingQuality = value) { Name = "RecordingQuality", CanBeOptional = true });
             RoomConfig.Add(RoomConfigProperties.FlvProcessorSplitOnScriptTag, new ConfigInstruction<RoomConfig, bool>(config => config.HasFlvProcessorSplitOnScriptTag = false, (config, value) => config.FlvProcessorSplitOnScriptTag = value) { Name = "FlvProcessorSplitOnScriptTag", CanBeOptional = true });
+            RoomConfig.Add(RoomConfigProperties.FlvProcessorDisableSplitOnH264AnnexB, new ConfigInstruction<RoomConfig, bool>(config => config.HasFlvProcessorDisableSplitOnH264AnnexB = false, (config, value) => config.FlvProcessorDisableSplitOnH264AnnexB = value) { Name = "FlvProcessorDisableSplitOnH264AnnexB", CanBeOptional = true });
+            RoomConfig.Add(RoomConfigProperties.TitleFilterPatterns, new ConfigInstruction<RoomConfig, string>(config => config.HasTitleFilterPatterns = false, (config, value) => config.TitleFilterPatterns = value) { Name = "TitleFilterPatterns", CanBeOptional = true });
         }
     }
 

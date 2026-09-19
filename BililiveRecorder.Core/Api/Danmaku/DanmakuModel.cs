@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using Newtonsoft.Json.Linq;
 
 #nullable enable
@@ -36,7 +38,15 @@ namespace BililiveRecorder.Core.Api.Danmaku
         /// <summary>
         /// 房间信息更新
         /// </summary>
-        RoomChange
+        RoomChange,
+        /// <summary>
+        /// 房间被锁定
+        /// </summary>
+        RoomLock,
+        /// <summary>
+        /// 直播被切断
+        /// </summary>
+        CutOff,
     }
 
     internal class DanmakuModel
@@ -130,6 +140,15 @@ namespace BililiveRecorder.Core.Api.Danmaku
         public int GiftCount { get; set; }
 
         /// <summary>
+        /// 礼物列表
+        /// <para>此项有值的消息类型：<list type="bullet">
+        /// <item><see cref="DanmakuMsgType.GiftSend"/>（仅 <c>SEND_GIFT_V2</c>）</item>
+        /// </list></para>
+        /// <para>一条 <c>SEND_GIFT_V2</c> 消息可能包含多件礼物，<see cref="GiftName"/> 和 <see cref="GiftCount"/> 为其中第一件。</para>
+        /// </summary>
+        public IReadOnlyList<SendGiftV2GiftItem>? GiftList { get; set; }
+
+        /// <summary>
         /// 该用户是否为房管（包括主播）
         /// <para>此项有值的消息类型：<list type="bullet">
         /// <item><see cref="DanmakuMsgType.Comment"/></item>
@@ -181,15 +200,15 @@ namespace BililiveRecorder.Core.Api.Danmaku
 
             switch (cmd)
             {
-                case "LIVE":
+                case "LIVE": // 开播
                     this.MsgType = DanmakuMsgType.LiveStart;
                     this.RoomID = obj["roomid"]?.ToObject<string>();
                     break;
-                case "PREPARING":
+                case "PREPARING": // 下播
                     this.MsgType = DanmakuMsgType.LiveEnd;
                     this.RoomID = obj["roomid"]?.ToObject<string>();
                     break;
-                case "DANMU_MSG":
+                case "DANMU_MSG": // 弹幕
                     this.MsgType = DanmakuMsgType.Comment;
                     this.CommentText = obj["info"]?[1]?.ToObject<string>();
                     this.UserID = obj["info"]?[2]?[0]?.ToObject<long>() ?? 0;
@@ -198,14 +217,43 @@ namespace BililiveRecorder.Core.Api.Danmaku
                     this.IsVIP = obj["info"]?[2]?[3]?.ToObject<string>() == "1";
                     this.UserGuardLevel = obj["info"]?[7]?.ToObject<int>() ?? 0;
                     break;
-                case "SEND_GIFT":
+                case "SEND_GIFT": // 送礼物
                     this.MsgType = DanmakuMsgType.GiftSend;
                     this.GiftName = obj["data"]?["giftName"]?.ToObject<string>();
                     this.UserName = obj["data"]?["uname"]?.ToObject<string>();
                     this.UserID = obj["data"]?["uid"]?.ToObject<long>() ?? 0;
                     this.GiftCount = obj["data"]?["num"]?.ToObject<int>() ?? 0;
                     break;
-                case "GUARD_BUY":
+                case "SEND_GIFT_V2": // 送礼物，礼物内容为 base64 编码的 protobuf
+                    {
+                        var pb = obj["data"]?["pb"]?.ToObject<string>();
+                        if (string.IsNullOrEmpty(pb))
+                        {
+                            this.MsgType = DanmakuMsgType.Unknown;
+                            break;
+                        }
+
+                        var broadcast = SendGiftV2Broadcast.Parse(Convert.FromBase64String(pb));
+
+                        // 与网页端行为一致，switch 为 false 的消息不作为礼物处理
+                        if (!broadcast.Switch)
+                        {
+                            this.MsgType = DanmakuMsgType.Unknown;
+                            break;
+                        }
+
+                        this.MsgType = DanmakuMsgType.GiftSend;
+                        this.UserName = broadcast.Uname;
+                        this.UserID = broadcast.Uid;
+                        this.GiftList = broadcast.GiftList;
+                        if (broadcast.GiftList.Count > 0)
+                        {
+                            this.GiftName = broadcast.GiftList[0].GiftName;
+                            this.GiftCount = broadcast.GiftList[0].Num;
+                        }
+                        break;
+                    }
+                case "GUARD_BUY": // 购买舰长
                     {
                         this.MsgType = DanmakuMsgType.GuardBuy;
                         this.UserID = obj["data"]?["uid"]?.ToObject<long>() ?? 0;
@@ -215,7 +263,7 @@ namespace BililiveRecorder.Core.Api.Danmaku
                         this.GiftCount = obj["data"]?["num"]?.ToObject<int>() ?? 0;
                         break;
                     }
-                case "SUPER_CHAT_MESSAGE":
+                case "SUPER_CHAT_MESSAGE": // SC
                     {
                         this.MsgType = DanmakuMsgType.SuperChat;
                         this.CommentText = obj["data"]?["message"]?.ToString();
@@ -225,12 +273,22 @@ namespace BililiveRecorder.Core.Api.Danmaku
                         this.SCKeepTime = obj["data"]?["time"]?.ToObject<int>() ?? 0;
                         break;
                     }
-                case "ROOM_CHANGE":
+                case "ROOM_CHANGE": // 房间信息变更
                     {
                         this.MsgType = DanmakuMsgType.RoomChange;
                         this.Title = obj["data"]?["title"]?.ToObject<string>();
                         this.AreaName = obj["data"]?["area_name"]?.ToObject<string>();
                         this.ParentAreaName = obj["data"]?["parent_area_name"]?.ToObject<string>();
+                        break;
+                    }
+                case "ROOM_LOCK": // 房间被锁定
+                    {
+                        this.MsgType = DanmakuMsgType.RoomLock;
+                        break;
+                    }
+                case "CUT_OFF": // 直播被切断
+                    {
+                        this.MsgType = DanmakuMsgType.CutOff;
                         break;
                     }
                 default:

@@ -46,7 +46,7 @@ namespace BililiveRecorder.Flv.Tests.RuleTests
             await AssertTagsByRerunPipeline(outputTags).ConfigureAwait(false);
 
             var xmlStr = outputTags.SerializeXml();
-            await Verifier.Verify(xmlStr).UseExtension("xml").UseParameters(path);
+            await Verifier.Verify(xmlStr, extension: "xml").UseParameters(path);
         }
 
         [Theory()]
@@ -58,7 +58,7 @@ namespace BililiveRecorder.Flv.Tests.RuleTests
             var originalTags = SampleFileLoader.LoadXmlFlv(path).Tags;
 
             var random = new System.Random();
-            var offset = random.Next(51, 9999);
+            var offset = random.Next(501, 9999);
             if (random.Next(2) == 1)
                 offset = -offset;
 
@@ -90,7 +90,7 @@ namespace BililiveRecorder.Flv.Tests.RuleTests
             await AssertTagsByRerunPipeline(outputTags).ConfigureAwait(false);
 
             var xmlStr = outputTags.SerializeXml();
-            await Verifier.Verify(xmlStr).UseExtension("xml").UseParameters(path);
+            await Verifier.Verify(xmlStr, extension: "xml").UseParameters(path);
         }
     }
 }

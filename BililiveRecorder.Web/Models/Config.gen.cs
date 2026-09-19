@@ -16,6 +16,7 @@ namespace BililiveRecorder.Web.Models
         public Optional<RecordMode>? OptionalRecordMode { get; set; }
         public Optional<CuttingMode>? OptionalCuttingMode { get; set; }
         public Optional<uint>? OptionalCuttingNumber { get; set; }
+        public Optional<bool>? OptionalCuttingByTitle { get; set; }
         public Optional<bool>? OptionalRecordDanmaku { get; set; }
         public Optional<bool>? OptionalRecordDanmakuRaw { get; set; }
         public Optional<bool>? OptionalRecordDanmakuSuperChat { get; set; }
@@ -24,6 +25,8 @@ namespace BililiveRecorder.Web.Models
         public Optional<bool>? OptionalSaveStreamCover { get; set; }
         public Optional<string?>? OptionalRecordingQuality { get; set; }
         public Optional<bool>? OptionalFlvProcessorSplitOnScriptTag { get; set; }
+        public Optional<bool>? OptionalFlvProcessorDisableSplitOnH264AnnexB { get; set; }
+        public Optional<string?>? OptionalTitleFilterPatterns { get; set; }
 
         public void ApplyTo(RoomConfig config)
         {
@@ -31,6 +34,7 @@ namespace BililiveRecorder.Web.Models
             if (this.OptionalRecordMode.HasValue) config.OptionalRecordMode = this.OptionalRecordMode.Value;
             if (this.OptionalCuttingMode.HasValue) config.OptionalCuttingMode = this.OptionalCuttingMode.Value;
             if (this.OptionalCuttingNumber.HasValue) config.OptionalCuttingNumber = this.OptionalCuttingNumber.Value;
+            if (this.OptionalCuttingByTitle.HasValue) config.OptionalCuttingByTitle = this.OptionalCuttingByTitle.Value;
             if (this.OptionalRecordDanmaku.HasValue) config.OptionalRecordDanmaku = this.OptionalRecordDanmaku.Value;
             if (this.OptionalRecordDanmakuRaw.HasValue) config.OptionalRecordDanmakuRaw = this.OptionalRecordDanmakuRaw.Value;
             if (this.OptionalRecordDanmakuSuperChat.HasValue) config.OptionalRecordDanmakuSuperChat = this.OptionalRecordDanmakuSuperChat.Value;
@@ -39,6 +43,8 @@ namespace BililiveRecorder.Web.Models
             if (this.OptionalSaveStreamCover.HasValue) config.OptionalSaveStreamCover = this.OptionalSaveStreamCover.Value;
             if (this.OptionalRecordingQuality.HasValue) config.OptionalRecordingQuality = this.OptionalRecordingQuality.Value;
             if (this.OptionalFlvProcessorSplitOnScriptTag.HasValue) config.OptionalFlvProcessorSplitOnScriptTag = this.OptionalFlvProcessorSplitOnScriptTag.Value;
+            if (this.OptionalFlvProcessorDisableSplitOnH264AnnexB.HasValue) config.OptionalFlvProcessorDisableSplitOnH264AnnexB = this.OptionalFlvProcessorDisableSplitOnH264AnnexB.Value;
+            if (this.OptionalTitleFilterPatterns.HasValue) config.OptionalTitleFilterPatterns = this.OptionalTitleFilterPatterns.Value;
         }
     }
 
@@ -47,6 +53,7 @@ namespace BililiveRecorder.Web.Models
         public Optional<RecordMode>? OptionalRecordMode { get; set; }
         public Optional<CuttingMode>? OptionalCuttingMode { get; set; }
         public Optional<uint>? OptionalCuttingNumber { get; set; }
+        public Optional<bool>? OptionalCuttingByTitle { get; set; }
         public Optional<bool>? OptionalRecordDanmaku { get; set; }
         public Optional<bool>? OptionalRecordDanmakuRaw { get; set; }
         public Optional<bool>? OptionalRecordDanmakuSuperChat { get; set; }
@@ -56,6 +63,9 @@ namespace BililiveRecorder.Web.Models
         public Optional<string?>? OptionalRecordingQuality { get; set; }
         public Optional<string?>? OptionalFileNameRecordTemplate { get; set; }
         public Optional<bool>? OptionalFlvProcessorSplitOnScriptTag { get; set; }
+        public Optional<bool>? OptionalFlvProcessorDisableSplitOnH264AnnexB { get; set; }
+        public Optional<bool>? OptionalFlvWriteMetadata { get; set; }
+        public Optional<string?>? OptionalTitleFilterPatterns { get; set; }
         public Optional<string?>? OptionalWebHookUrls { get; set; }
         public Optional<string?>? OptionalWebHookUrlsV2 { get; set; }
         public Optional<bool>? OptionalWpfShowTitleAndArea { get; set; }
@@ -71,8 +81,10 @@ namespace BililiveRecorder.Web.Models
         public Optional<uint>? OptionalTimingWatchdogTimeout { get; set; }
         public Optional<uint>? OptionalRecordDanmakuFlushInterval { get; set; }
         public Optional<DanmakuTransportMode>? OptionalDanmakuTransport { get; set; }
+        public Optional<bool>? OptionalDanmakuAuthenticateWithStreamerUid { get; set; }
         public Optional<bool>? OptionalNetworkTransportUseSystemProxy { get; set; }
         public Optional<AllowedAddressFamily>? OptionalNetworkTransportAllowedAddressFamily { get; set; }
+        public Optional<string?>? OptionalNetworkTransportBindAddress { get; set; }
         public Optional<string?>? OptionalUserScript { get; set; }
 
         public void ApplyTo(GlobalConfig config)
@@ -80,6 +92,7 @@ namespace BililiveRecorder.Web.Models
             if (this.OptionalRecordMode.HasValue) config.OptionalRecordMode = this.OptionalRecordMode.Value;
             if (this.OptionalCuttingMode.HasValue) config.OptionalCuttingMode = this.OptionalCuttingMode.Value;
             if (this.OptionalCuttingNumber.HasValue) config.OptionalCuttingNumber = this.OptionalCuttingNumber.Value;
+            if (this.OptionalCuttingByTitle.HasValue) config.OptionalCuttingByTitle = this.OptionalCuttingByTitle.Value;
             if (this.OptionalRecordDanmaku.HasValue) config.OptionalRecordDanmaku = this.OptionalRecordDanmaku.Value;
             if (this.OptionalRecordDanmakuRaw.HasValue) config.OptionalRecordDanmakuRaw = this.OptionalRecordDanmakuRaw.Value;
             if (this.OptionalRecordDanmakuSuperChat.HasValue) config.OptionalRecordDanmakuSuperChat = this.OptionalRecordDanmakuSuperChat.Value;
@@ -89,6 +102,9 @@ namespace BililiveRecorder.Web.Models
             if (this.OptionalRecordingQuality.HasValue) config.OptionalRecordingQuality = this.OptionalRecordingQuality.Value;
             if (this.OptionalFileNameRecordTemplate.HasValue) config.OptionalFileNameRecordTemplate = this.OptionalFileNameRecordTemplate.Value;
             if (this.OptionalFlvProcessorSplitOnScriptTag.HasValue) config.OptionalFlvProcessorSplitOnScriptTag = this.OptionalFlvProcessorSplitOnScriptTag.Value;
+            if (this.OptionalFlvProcessorDisableSplitOnH264AnnexB.HasValue) config.OptionalFlvProcessorDisableSplitOnH264AnnexB = this.OptionalFlvProcessorDisableSplitOnH264AnnexB.Value;
+            if (this.OptionalFlvWriteMetadata.HasValue) config.OptionalFlvWriteMetadata = this.OptionalFlvWriteMetadata.Value;
+            if (this.OptionalTitleFilterPatterns.HasValue) config.OptionalTitleFilterPatterns = this.OptionalTitleFilterPatterns.Value;
             if (this.OptionalWebHookUrls.HasValue) config.OptionalWebHookUrls = this.OptionalWebHookUrls.Value;
             if (this.OptionalWebHookUrlsV2.HasValue) config.OptionalWebHookUrlsV2 = this.OptionalWebHookUrlsV2.Value;
             if (this.OptionalWpfShowTitleAndArea.HasValue) config.OptionalWpfShowTitleAndArea = this.OptionalWpfShowTitleAndArea.Value;
@@ -104,8 +120,10 @@ namespace BililiveRecorder.Web.Models
             if (this.OptionalTimingWatchdogTimeout.HasValue) config.OptionalTimingWatchdogTimeout = this.OptionalTimingWatchdogTimeout.Value;
             if (this.OptionalRecordDanmakuFlushInterval.HasValue) config.OptionalRecordDanmakuFlushInterval = this.OptionalRecordDanmakuFlushInterval.Value;
             if (this.OptionalDanmakuTransport.HasValue) config.OptionalDanmakuTransport = this.OptionalDanmakuTransport.Value;
+            if (this.OptionalDanmakuAuthenticateWithStreamerUid.HasValue) config.OptionalDanmakuAuthenticateWithStreamerUid = this.OptionalDanmakuAuthenticateWithStreamerUid.Value;
             if (this.OptionalNetworkTransportUseSystemProxy.HasValue) config.OptionalNetworkTransportUseSystemProxy = this.OptionalNetworkTransportUseSystemProxy.Value;
             if (this.OptionalNetworkTransportAllowedAddressFamily.HasValue) config.OptionalNetworkTransportAllowedAddressFamily = this.OptionalNetworkTransportAllowedAddressFamily.Value;
+            if (this.OptionalNetworkTransportBindAddress.HasValue) config.OptionalNetworkTransportBindAddress = this.OptionalNetworkTransportBindAddress.Value;
             if (this.OptionalUserScript.HasValue) config.OptionalUserScript = this.OptionalUserScript.Value;
         }
     }
@@ -120,6 +138,7 @@ namespace BililiveRecorder.Web.Models.Rest
         public Optional<RecordMode> OptionalRecordMode { get; set; }
         public Optional<CuttingMode> OptionalCuttingMode { get; set; }
         public Optional<uint> OptionalCuttingNumber { get; set; }
+        public Optional<bool> OptionalCuttingByTitle { get; set; }
         public Optional<bool> OptionalRecordDanmaku { get; set; }
         public Optional<bool> OptionalRecordDanmakuRaw { get; set; }
         public Optional<bool> OptionalRecordDanmakuSuperChat { get; set; }
@@ -128,6 +147,8 @@ namespace BililiveRecorder.Web.Models.Rest
         public Optional<bool> OptionalSaveStreamCover { get; set; }
         public Optional<string?> OptionalRecordingQuality { get; set; }
         public Optional<bool> OptionalFlvProcessorSplitOnScriptTag { get; set; }
+        public Optional<bool> OptionalFlvProcessorDisableSplitOnH264AnnexB { get; set; }
+        public Optional<string?> OptionalTitleFilterPatterns { get; set; }
     }
 
     public class GlobalConfigDto
@@ -135,6 +156,7 @@ namespace BililiveRecorder.Web.Models.Rest
         public Optional<RecordMode> OptionalRecordMode { get; set; }
         public Optional<CuttingMode> OptionalCuttingMode { get; set; }
         public Optional<uint> OptionalCuttingNumber { get; set; }
+        public Optional<bool> OptionalCuttingByTitle { get; set; }
         public Optional<bool> OptionalRecordDanmaku { get; set; }
         public Optional<bool> OptionalRecordDanmakuRaw { get; set; }
         public Optional<bool> OptionalRecordDanmakuSuperChat { get; set; }
@@ -144,6 +166,9 @@ namespace BililiveRecorder.Web.Models.Rest
         public Optional<string?> OptionalRecordingQuality { get; set; }
         public Optional<string?> OptionalFileNameRecordTemplate { get; set; }
         public Optional<bool> OptionalFlvProcessorSplitOnScriptTag { get; set; }
+        public Optional<bool> OptionalFlvProcessorDisableSplitOnH264AnnexB { get; set; }
+        public Optional<bool> OptionalFlvWriteMetadata { get; set; }
+        public Optional<string?> OptionalTitleFilterPatterns { get; set; }
         public Optional<string?> OptionalWebHookUrls { get; set; }
         public Optional<string?> OptionalWebHookUrlsV2 { get; set; }
         public Optional<bool> OptionalWpfShowTitleAndArea { get; set; }
@@ -159,8 +184,10 @@ namespace BililiveRecorder.Web.Models.Rest
         public Optional<uint> OptionalTimingWatchdogTimeout { get; set; }
         public Optional<uint> OptionalRecordDanmakuFlushInterval { get; set; }
         public Optional<DanmakuTransportMode> OptionalDanmakuTransport { get; set; }
+        public Optional<bool> OptionalDanmakuAuthenticateWithStreamerUid { get; set; }
         public Optional<bool> OptionalNetworkTransportUseSystemProxy { get; set; }
         public Optional<AllowedAddressFamily> OptionalNetworkTransportAllowedAddressFamily { get; set; }
+        public Optional<string?> OptionalNetworkTransportBindAddress { get; set; }
         public Optional<string?> OptionalUserScript { get; set; }
     }
 
@@ -177,6 +204,7 @@ namespace BililiveRecorder.Web.Models.Graphql
             this.Field(x => x.OptionalRecordMode, type: typeof(HierarchicalOptionalType<RecordMode>));
             this.Field(x => x.OptionalCuttingMode, type: typeof(HierarchicalOptionalType<CuttingMode>));
             this.Field(x => x.OptionalCuttingNumber, type: typeof(HierarchicalOptionalType<uint>));
+            this.Field(x => x.OptionalCuttingByTitle, type: typeof(HierarchicalOptionalType<bool>));
             this.Field(x => x.OptionalRecordDanmaku, type: typeof(HierarchicalOptionalType<bool>));
             this.Field(x => x.OptionalRecordDanmakuRaw, type: typeof(HierarchicalOptionalType<bool>));
             this.Field(x => x.OptionalRecordDanmakuSuperChat, type: typeof(HierarchicalOptionalType<bool>));
@@ -185,6 +213,8 @@ namespace BililiveRecorder.Web.Models.Graphql
             this.Field(x => x.OptionalSaveStreamCover, type: typeof(HierarchicalOptionalType<bool>));
             this.Field(x => x.OptionalRecordingQuality, type: typeof(HierarchicalOptionalType<string>));
             this.Field(x => x.OptionalFlvProcessorSplitOnScriptTag, type: typeof(HierarchicalOptionalType<bool>));
+            this.Field(x => x.OptionalFlvProcessorDisableSplitOnH264AnnexB, type: typeof(HierarchicalOptionalType<bool>));
+            this.Field(x => x.OptionalTitleFilterPatterns, type: typeof(HierarchicalOptionalType<string>));
         }
     }
 
@@ -195,6 +225,7 @@ namespace BililiveRecorder.Web.Models.Graphql
             this.Field(x => x.OptionalRecordMode, type: typeof(HierarchicalOptionalType<RecordMode>));
             this.Field(x => x.OptionalCuttingMode, type: typeof(HierarchicalOptionalType<CuttingMode>));
             this.Field(x => x.OptionalCuttingNumber, type: typeof(HierarchicalOptionalType<uint>));
+            this.Field(x => x.OptionalCuttingByTitle, type: typeof(HierarchicalOptionalType<bool>));
             this.Field(x => x.OptionalRecordDanmaku, type: typeof(HierarchicalOptionalType<bool>));
             this.Field(x => x.OptionalRecordDanmakuRaw, type: typeof(HierarchicalOptionalType<bool>));
             this.Field(x => x.OptionalRecordDanmakuSuperChat, type: typeof(HierarchicalOptionalType<bool>));
@@ -204,6 +235,9 @@ namespace BililiveRecorder.Web.Models.Graphql
             this.Field(x => x.OptionalRecordingQuality, type: typeof(HierarchicalOptionalType<string>));
             this.Field(x => x.OptionalFileNameRecordTemplate, type: typeof(HierarchicalOptionalType<string>));
             this.Field(x => x.OptionalFlvProcessorSplitOnScriptTag, type: typeof(HierarchicalOptionalType<bool>));
+            this.Field(x => x.OptionalFlvProcessorDisableSplitOnH264AnnexB, type: typeof(HierarchicalOptionalType<bool>));
+            this.Field(x => x.OptionalFlvWriteMetadata, type: typeof(HierarchicalOptionalType<bool>));
+            this.Field(x => x.OptionalTitleFilterPatterns, type: typeof(HierarchicalOptionalType<string>));
             this.Field(x => x.OptionalWebHookUrls, type: typeof(HierarchicalOptionalType<string>));
             this.Field(x => x.OptionalWebHookUrlsV2, type: typeof(HierarchicalOptionalType<string>));
             this.Field(x => x.OptionalWpfShowTitleAndArea, type: typeof(HierarchicalOptionalType<bool>));
@@ -219,8 +253,10 @@ namespace BililiveRecorder.Web.Models.Graphql
             this.Field(x => x.OptionalTimingWatchdogTimeout, type: typeof(HierarchicalOptionalType<uint>));
             this.Field(x => x.OptionalRecordDanmakuFlushInterval, type: typeof(HierarchicalOptionalType<uint>));
             this.Field(x => x.OptionalDanmakuTransport, type: typeof(HierarchicalOptionalType<DanmakuTransportMode>));
+            this.Field(x => x.OptionalDanmakuAuthenticateWithStreamerUid, type: typeof(HierarchicalOptionalType<bool>));
             this.Field(x => x.OptionalNetworkTransportUseSystemProxy, type: typeof(HierarchicalOptionalType<bool>));
             this.Field(x => x.OptionalNetworkTransportAllowedAddressFamily, type: typeof(HierarchicalOptionalType<AllowedAddressFamily>));
+            this.Field(x => x.OptionalNetworkTransportBindAddress, type: typeof(HierarchicalOptionalType<string>));
             this.Field(x => x.OptionalUserScript, type: typeof(HierarchicalOptionalType<string>));
         }
     }
@@ -232,6 +268,7 @@ namespace BililiveRecorder.Web.Models.Graphql
             this.Field(x => x.RecordMode);
             this.Field(x => x.CuttingMode);
             this.Field(x => x.CuttingNumber);
+            this.Field(x => x.CuttingByTitle);
             this.Field(x => x.RecordDanmaku);
             this.Field(x => x.RecordDanmakuRaw);
             this.Field(x => x.RecordDanmakuSuperChat);
@@ -241,6 +278,9 @@ namespace BililiveRecorder.Web.Models.Graphql
             this.Field(x => x.RecordingQuality);
             this.Field(x => x.FileNameRecordTemplate);
             this.Field(x => x.FlvProcessorSplitOnScriptTag);
+            this.Field(x => x.FlvProcessorDisableSplitOnH264AnnexB);
+            this.Field(x => x.FlvWriteMetadata);
+            this.Field(x => x.TitleFilterPatterns);
             this.Field(x => x.WebHookUrls);
             this.Field(x => x.WebHookUrlsV2);
             this.Field(x => x.WpfShowTitleAndArea);
@@ -256,8 +296,10 @@ namespace BililiveRecorder.Web.Models.Graphql
             this.Field(x => x.TimingWatchdogTimeout);
             this.Field(x => x.RecordDanmakuFlushInterval);
             this.Field(x => x.DanmakuTransport);
+            this.Field(x => x.DanmakuAuthenticateWithStreamerUid);
             this.Field(x => x.NetworkTransportUseSystemProxy);
             this.Field(x => x.NetworkTransportAllowedAddressFamily);
+            this.Field(x => x.NetworkTransportBindAddress);
             this.Field(x => x.UserScript);
         }
     }
@@ -270,6 +312,7 @@ namespace BililiveRecorder.Web.Models.Graphql
             this.Field(x => x.OptionalRecordMode, nullable: true, type: typeof(HierarchicalOptionalInputType<RecordMode>));
             this.Field(x => x.OptionalCuttingMode, nullable: true, type: typeof(HierarchicalOptionalInputType<CuttingMode>));
             this.Field(x => x.OptionalCuttingNumber, nullable: true, type: typeof(HierarchicalOptionalInputType<uint>));
+            this.Field(x => x.OptionalCuttingByTitle, nullable: true, type: typeof(HierarchicalOptionalInputType<bool>));
             this.Field(x => x.OptionalRecordDanmaku, nullable: true, type: typeof(HierarchicalOptionalInputType<bool>));
             this.Field(x => x.OptionalRecordDanmakuRaw, nullable: true, type: typeof(HierarchicalOptionalInputType<bool>));
             this.Field(x => x.OptionalRecordDanmakuSuperChat, nullable: true, type: typeof(HierarchicalOptionalInputType<bool>));
@@ -278,6 +321,8 @@ namespace BililiveRecorder.Web.Models.Graphql
             this.Field(x => x.OptionalSaveStreamCover, nullable: true, type: typeof(HierarchicalOptionalInputType<bool>));
             this.Field(x => x.OptionalRecordingQuality, nullable: true, type: typeof(HierarchicalOptionalInputType<string>));
             this.Field(x => x.OptionalFlvProcessorSplitOnScriptTag, nullable: true, type: typeof(HierarchicalOptionalInputType<bool>));
+            this.Field(x => x.OptionalFlvProcessorDisableSplitOnH264AnnexB, nullable: true, type: typeof(HierarchicalOptionalInputType<bool>));
+            this.Field(x => x.OptionalTitleFilterPatterns, nullable: true, type: typeof(HierarchicalOptionalInputType<string>));
         }
     }
 
@@ -288,6 +333,7 @@ namespace BililiveRecorder.Web.Models.Graphql
             this.Field(x => x.OptionalRecordMode, nullable: true, type: typeof(HierarchicalOptionalInputType<RecordMode>));
             this.Field(x => x.OptionalCuttingMode, nullable: true, type: typeof(HierarchicalOptionalInputType<CuttingMode>));
             this.Field(x => x.OptionalCuttingNumber, nullable: true, type: typeof(HierarchicalOptionalInputType<uint>));
+            this.Field(x => x.OptionalCuttingByTitle, nullable: true, type: typeof(HierarchicalOptionalInputType<bool>));
             this.Field(x => x.OptionalRecordDanmaku, nullable: true, type: typeof(HierarchicalOptionalInputType<bool>));
             this.Field(x => x.OptionalRecordDanmakuRaw, nullable: true, type: typeof(HierarchicalOptionalInputType<bool>));
             this.Field(x => x.OptionalRecordDanmakuSuperChat, nullable: true, type: typeof(HierarchicalOptionalInputType<bool>));
@@ -297,6 +343,9 @@ namespace BililiveRecorder.Web.Models.Graphql
             this.Field(x => x.OptionalRecordingQuality, nullable: true, type: typeof(HierarchicalOptionalInputType<string>));
             this.Field(x => x.OptionalFileNameRecordTemplate, nullable: true, type: typeof(HierarchicalOptionalInputType<string>));
             this.Field(x => x.OptionalFlvProcessorSplitOnScriptTag, nullable: true, type: typeof(HierarchicalOptionalInputType<bool>));
+            this.Field(x => x.OptionalFlvProcessorDisableSplitOnH264AnnexB, nullable: true, type: typeof(HierarchicalOptionalInputType<bool>));
+            this.Field(x => x.OptionalFlvWriteMetadata, nullable: true, type: typeof(HierarchicalOptionalInputType<bool>));
+            this.Field(x => x.OptionalTitleFilterPatterns, nullable: true, type: typeof(HierarchicalOptionalInputType<string>));
             this.Field(x => x.OptionalWebHookUrls, nullable: true, type: typeof(HierarchicalOptionalInputType<string>));
             this.Field(x => x.OptionalWebHookUrlsV2, nullable: true, type: typeof(HierarchicalOptionalInputType<string>));
             this.Field(x => x.OptionalWpfShowTitleAndArea, nullable: true, type: typeof(HierarchicalOptionalInputType<bool>));
@@ -312,8 +361,10 @@ namespace BililiveRecorder.Web.Models.Graphql
             this.Field(x => x.OptionalTimingWatchdogTimeout, nullable: true, type: typeof(HierarchicalOptionalInputType<uint>));
             this.Field(x => x.OptionalRecordDanmakuFlushInterval, nullable: true, type: typeof(HierarchicalOptionalInputType<uint>));
             this.Field(x => x.OptionalDanmakuTransport, nullable: true, type: typeof(HierarchicalOptionalInputType<DanmakuTransportMode>));
+            this.Field(x => x.OptionalDanmakuAuthenticateWithStreamerUid, nullable: true, type: typeof(HierarchicalOptionalInputType<bool>));
             this.Field(x => x.OptionalNetworkTransportUseSystemProxy, nullable: true, type: typeof(HierarchicalOptionalInputType<bool>));
             this.Field(x => x.OptionalNetworkTransportAllowedAddressFamily, nullable: true, type: typeof(HierarchicalOptionalInputType<AllowedAddressFamily>));
+            this.Field(x => x.OptionalNetworkTransportBindAddress, nullable: true, type: typeof(HierarchicalOptionalInputType<string>));
             this.Field(x => x.OptionalUserScript, nullable: true, type: typeof(HierarchicalOptionalInputType<string>));
         }
     }

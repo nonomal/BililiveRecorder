@@ -17,6 +17,9 @@ namespace BililiveRecorder.Core.Api
             this.policies = policies ?? throw new ArgumentNullException(nameof(policies));
         }
 
+        public long GetUid() => this.client.GetUid();
+        public string? GetBuvid3() => this.client.GetBuvid3();
+
         public async Task<BilibiliApiResponse<DanmuInfo>> GetDanmakuServerAsync(int roomid) => await this.policies
             .Get<IAsyncPolicy>(PolicyNames.PolicyDanmakuApiRequestAsync)
             .ExecuteAsync(_ => this.client.GetDanmakuServerAsync(roomid), new Context(PolicyNames.CacheKeyDanmaku + ":" + roomid))

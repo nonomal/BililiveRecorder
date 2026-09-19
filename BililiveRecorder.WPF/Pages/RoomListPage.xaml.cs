@@ -23,9 +23,6 @@ namespace BililiveRecorder.WPF.Pages
     public partial class RoomListPage
     {
         private static readonly ILogger logger = Log.ForContext<RoomListPage>();
-        private static readonly Regex RoomIdRegex
-            = new Regex(@"^(?:https?:\/\/)?live\.bilibili\.com\/(?:blanc\/|h5\/)?(\d*)(?:\?.*)?$",
-                RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
 
         private readonly IRoom?[] NullRoom = new IRoom?[] { null };
 
@@ -38,13 +35,6 @@ namespace BililiveRecorder.WPF.Pages
             this.DataContextChanged += this.RoomListPage_DataContextChanged;
 
             this.InitializeComponent();
-
-            if (DateTimeOffset.UtcNow < new DateTimeOffset(2023, 1, 1, 0, 0, 0, TimeSpan.Zero))
-            {
-                // TODO: delete this
-                this.wj202209Separator.Visibility = Visibility.Visible;
-                this.wj202209.Visibility = Visibility.Visible;
-            }
         }
 
         private void RoomListPage_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -166,7 +156,7 @@ namespace BililiveRecorder.WPF.Pages
 
             if (!int.TryParse(input, out var roomid))
             {
-                var m = RoomIdRegex.Match(input);
+                var m = RoomIdFromUrl.Regex.Match(input);
                 if (m.Success && m.Groups.Count > 1 && int.TryParse(m.Groups[1].Value, out var result2))
                 {
                     roomid = result2;
@@ -345,8 +335,8 @@ namespace BililiveRecorder.WPF.Pages
                 {
                     await Task.Delay(200);
 
-                    if (MessageBox.Show("录播姬会自动检测直播间状态，不需要手动刷新。\n录播姬主要通过接收B站服务器的推送来更新状态，直播服务器会给录播姬实时发送开播通知，延迟极低。\n\n" +
-                        "频繁刷新直播间状态、短时间内大量请求B站直播 API 可能会导致你的 IP 被屏蔽，完全无法录播。\n\n本功能是特殊情况下确实需要刷新所有直播间信息时使用的。\n\n是否要刷新所有直播间的信息？\n（每个直播间会发送一个请求）", "B站录播姬", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                    if (MessageBox.Show("录播姬会自动检测直播间状态，不需要手动刷新。\n录播姬主要通过接收mikufans服务器的推送来更新状态，直播服务器会给录播姬实时发送开播通知，延迟极低。\n\n" +
+                        "频繁刷新直播间状态、短时间内大量请求mikufans直播 API 可能会导致你的 IP 被屏蔽，完全无法录播。\n\n本功能是特殊情况下确实需要刷新所有直播间信息时使用的。\n\n是否要刷新所有直播间的信息？\n（每个直播间会发送一个请求）", "mikufans录播姬", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
                         return;
 
                     foreach (var room in rec.Rooms.ToArray())

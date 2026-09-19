@@ -93,7 +93,11 @@ namespace BililiveRecorder.Core.Templating
             templateOptions.MemberAccessStrategy.MemberNameStrategy = MemberNameStrategies.CamelCase;
             templateOptions.ValueConverters.Add(o => o is JContainer j ? new JContainerValue(j) : null);
             templateOptions.Filters.AddFilter("format_qn",
-                static (FluidValue input, FilterArguments arguments, TemplateContext context) => new StringValue(StreamQualityNumber.MapToString((int)input.ToNumberValue())));
+                static (FluidValue input, FilterArguments arguments, TemplateContext context)
+                    => new StringValue(StreamQualityNumber.MapToString((int)input.ToNumberValue())));
+            templateOptions.Filters.AddFilter("unescape",
+                static (FluidValue input, FilterArguments arguments, TemplateContext context)
+                    => new StringValue(System.Net.WebUtility.HtmlDecode(input.ToStringValue())));
 
             var context = new TemplateContext(data, templateOptions);
 
@@ -108,7 +112,7 @@ namespace BililiveRecorder.Core.Templating
             relativePath = template.Render(context);
             relativePath = RemoveInvalidFileName(relativePath);
 
-            fullPath = skipFullPath ? null : Path.GetFullPath(Path.Combine(workDirectory, relativePath));
+            fullPath = workDirectory is null ? null : Path.GetFullPath(Path.Combine(workDirectory, relativePath));
 
             if (!skipFullPath && !CheckIsWithinPath(workDirectory!, fullPath!))
             {
@@ -138,9 +142,9 @@ namespace BililiveRecorder.Core.Templating
 
             return new FileNameTemplateOutput(status, errorMessage, relativePath, fullPath);
 
-        returnDefaultPath:
+returnDefaultPath:
             var defaultRelativePath = RemoveInvalidFileName(defaultTemplate.Render(context));
-            var defaultFullPath = skipFullPath ? null : Path.GetFullPath(Path.Combine(workDirectory, defaultRelativePath));
+            var defaultFullPath = workDirectory is null ? null : Path.GetFullPath(Path.Combine(workDirectory, defaultRelativePath));
 
             return new FileNameTemplateOutput(status, errorMessage, defaultRelativePath, defaultFullPath);
         }
@@ -230,7 +234,7 @@ namespace BililiveRecorder.Core.Templating
         internal static string RemoveInvalidFileName(string input, bool ignore_slash = true)
         {
             foreach (var c in Path.GetInvalidFileNameChars())
-                if (!ignore_slash || c != '\\' && c != '/')
+                if (!ignore_slash || (c != '\\' && c != '/'))
                     input = input.Replace(c, '_');
 
             input = invalidDirectoryNameRegex.Replace(input, "$1_$2");
@@ -246,21 +250,21 @@ namespace BililiveRecorder.Core.Templating
             var fullChild = Path.GetFullPath(child);
 
             var parentSegments = fullParent.Split(separator, StringSplitOptions.None).AsSpan();
-            if (parentSegments[parentSegments.Length - 1] == "")
+            if (parentSegments[^1] == "")
             {
-                parentSegments = parentSegments.Slice(0, parentSegments.Length - 1);
+                parentSegments = parentSegments[..^1];
             }
 
             var childSegments = fullChild.Split(separator, StringSplitOptions.None).AsSpan();
-            if (childSegments[childSegments.Length - 1] == "")
+            if (childSegments[^1] == "")
             {
-                childSegments = childSegments.Slice(0, childSegments.Length - 1);
+                childSegments = childSegments[..^1];
             }
 
             if (parentSegments.Length >= childSegments.Length)
                 return false;
 
-            return childSegments.Slice(0, parentSegments.Length).SequenceEqual(parentSegments);
+            return childSegments[..parentSegments.Length].SequenceEqual(parentSegments);
         }
     }
 }

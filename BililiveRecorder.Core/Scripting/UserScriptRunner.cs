@@ -1,12 +1,16 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
+using BililiveRecorder.Core.Api;
 using BililiveRecorder.Core.Config.V3;
 using BililiveRecorder.Core.Scripting.Runtime;
-using Esprima.Ast;
+using Acornima.Ast;
 using Jint;
 using Jint.Native;
-using Jint.Native.Function;
+using Function = Jint.Native.Function.Function;
 using Jint.Native.Object;
+using Jint.Runtime;
 using Jint.Runtime.Interop;
 using Serilog;
 
@@ -21,10 +25,11 @@ namespace BililiveRecorder.Core.Scripting
         private readonly GlobalConfig config;
         private readonly Options jintOptions;
 
-        private static readonly Script setupScript;
+        private static readonly Prepared<Script> setupScript;
+        private static readonly JintStorage sharedStorage = new();
 
         private string? cachedScriptSource;
-        private Script? cachedScript;
+        private Prepared<Script>? cachedScript;
 
         static UserScriptRunner()
         {
@@ -43,13 +48,16 @@ globalThis.recorderEvents = {};
                 .RegexTimeoutInterval(TimeSpan.FromSeconds(2))
                 .Configure(engine =>
                 {
-                    engine.Realm.GlobalObject.FastAddProperty("dns", new JintDns(engine), writable: false, enumerable: false, configurable: false);
-                    engine.Realm.GlobalObject.FastAddProperty("dotnet", new JintDotnet(engine), writable: false, enumerable: false, configurable: false);
-                    engine.Realm.GlobalObject.FastAddProperty("fetchSync", new JintFetchSync(engine), writable: false, enumerable: false, configurable: false);
+                    engine.SetValue("dns", new JintDns(engine));
+                    engine.SetValue("dotnet", new JintDotnet(engine));
+                    engine.SetValue("fetchSync", JintFetchSync.Create(engine));
+                    engine.SetValue("URL", TypeReference.CreateTypeReference<JintURL>(engine));
+                    engine.SetValue("URLSearchParams", TypeReference.CreateTypeReference<JintURLSearchParams>(engine));
+                    engine.SetValue("sharedStorage", ObjectWrapper.Create(engine, sharedStorage));
                 });
         }
 
-        private Script? GetParsedScript()
+        private Prepared<Script>? GetParsedScript()
         {
             var source = this.config.UserScript;
 
@@ -84,7 +92,7 @@ globalThis.recorderEvents = {};
         {
             var engine = new Engine(this.jintOptions);
 
-            engine.Realm.GlobalObject.FastAddProperty("console", new JintConsole(engine, logger), writable: false, enumerable: false, configurable: false);
+            engine.SetValue("console", new JintConsole(engine, logger));
 
             engine.Execute(setupScript);
 
@@ -97,22 +105,22 @@ globalThis.recorderEvents = {};
             return logger.ForContext<UserScriptRunner>().ForContext(nameof(ExecutionId), id);
         }
 
-        private FunctionInstance? ExecuteScriptThenGetEventHandler(ILogger logger, string functionName)
+        private Function? ExecuteScriptThenGetEventHandler(ILogger logger, string functionName)
         {
             var script = this.GetParsedScript();
             if (script is null)
                 return null;
 
             var engine = this.CreateJintEngine(logger);
-            engine.Execute(script);
+            engine.Execute(script.Value);
 
-            if (engine.Realm.GlobalObject.Get(RecorderEventsString) is not ObjectInstance events)
+            if (engine.Global.Get(RecorderEventsString) is not ObjectInstance events)
             {
                 logger.Warning("[Script] recorderEvents 被修改为非 object");
                 return null;
             }
 
-            return events.Get(functionName) as FunctionInstance;
+            return events.Get(functionName) as Function;
         }
 
         public void CallOnTest(ILogger logger, Action<string>? alert)
@@ -124,7 +132,7 @@ globalThis.recorderEvents = {};
                 var func = this.ExecuteScriptThenGetEventHandler(log, callbackName);
                 if (func is null) return;
 
-                _ = func.Engine.Call(func, new DelegateWrapper(func.Engine, alert ?? delegate { }));
+                _ = func.Engine.Call(func, JsValue.FromObject(func.Engine, alert ?? delegate { }));
             }
             catch (Exception ex)
             {
@@ -150,7 +158,7 @@ globalThis.recorderEvents = {};
 
                 var result = func.Engine.Call(func, json);
 
-                return result.IsLooselyEqual(true);
+                return TypeConverter.ToBoolean(result);
             }
             catch (Exception ex)
             {
@@ -165,7 +173,7 @@ globalThis.recorderEvents = {};
         /// <param name="logger">logger</param>
         /// <param name="roomid">房间号</param>
         /// <returns>直播流 URL</returns>
-        public string? CallOnFetchStreamUrl(ILogger logger, int roomid, int[] qnSetting)
+        public string? CallOnFetchStreamUrl(ILogger logger, int roomid, IReadOnlyList<StreamCodecQn> qnSetting)
         {
             const string callbackName = "onFetchStreamUrl";
             var log = BuildLogger(logger);
@@ -174,9 +182,30 @@ globalThis.recorderEvents = {};
                 var func = this.ExecuteScriptThenGetEventHandler(log, callbackName);
                 if (func is null) return null;
 
-                var input = new ObjectInstance(func.Engine);
+                var input = new JsObject(func.Engine);
                 input.Set("roomid", roomid);
-                input.Set("qn", JsValue.FromObject(func.Engine, qnSetting));
+
+                var qnList = new List<int>();
+                var qnV2 = new JsArray(func.Engine, capacity: (uint)qnSetting.Count);
+                foreach (var setting in qnSetting)
+                {
+                    if (!qnList.Contains(setting.Qn))
+                    {
+                        qnList.Add(setting.Qn);
+                    }
+
+                    var v2element = new JsObject(func.Engine);
+                    v2element.Set("qn", setting.Qn);
+                    v2element.Set("codec", setting.Codec switch
+                    {
+                        StreamCodec.AVC => "avc",
+                        StreamCodec.HEVC => "hevc",
+                        _ => "unknown"
+                    });
+                    qnV2.Push(v2element);
+                }
+                input.Set("qn", new JsArray(func.Engine, qnList.Select(x => new JsNumber(x)).ToArray()));
+                input.Set("qn_v2", qnV2);
 
                 var result = func.Engine.Call(func, input);
 
@@ -233,6 +262,45 @@ globalThis.recorderEvents = {};
 
                             return (urlString.ToString(), ip?.ToString());
                         }
+                    case JsUndefined or JsNull:
+                        return null;
+                    default:
+                        log.Warning($"{RecorderEvents}.{callbackName}() 返回了不支持的类型: {{ValueType}}", result.Type);
+                        return null;
+                }
+            }
+            catch (Exception ex)
+            {
+                log.Error(ex, $"执行脚本 {callbackName} 时发生错误");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// 修改发给弹幕服务器的握手包 JSON
+        /// </summary>
+        /// <param name="logger">logger</param>
+        /// <param name="room">对应的直播间</param>
+        /// <param name="json">原握手包文本 JSON 数据</param>
+        /// <returns>新的握手包JSON 或 null</returns>
+        public string? CallOnDanmakuHandshake(ILogger logger, IRoom room, string json)
+        {
+            const string callbackName = "onDanmakuHandshake";
+            var log = BuildLogger(logger);
+            try
+            {
+                var func = this.ExecuteScriptThenGetEventHandler(log, callbackName);
+                if (func is null)
+                    return null;
+
+                var roomInfo = new JintRoomInfo(func.Engine, room);
+
+                var result = func.Engine.Call(func, roomInfo, json);
+
+                switch (result)
+                {
+                    case JsString jsString:
+                        return jsString.ToString();
                     case JsUndefined or JsNull:
                         return null;
                     default:

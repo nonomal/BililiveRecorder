@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Pipelines;
+using System.Threading;
 using System.Threading.Tasks;
 using BililiveRecorder.Flv.Parser;
 using VerifyTests;
@@ -13,6 +14,19 @@ namespace BililiveRecorder.Flv.Tests.FlvTests
     [ExpectationPath("FlvParser")]
     public class ParserTest
     {
+        [Fact]
+        public async Task CompletedEmptyPipeReturnsNullAsync()
+        {
+            var pipe = new Pipe();
+            await pipe.Writer.CompleteAsync().ConfigureAwait(false);
+
+            using var reader = new FlvTagPipeReader(pipe.Reader, new TestRecyclableMemoryStreamProvider(), skipData: false, leaveOpen: false, logger: null);
+            using var cancellationTokenSource = new CancellationTokenSource(1000);
+
+            var tag = await reader.ReadTagAsync(cancellationTokenSource.Token).ConfigureAwait(false);
+            Assert.Null(tag);
+        }
+
         [Theory]
         [Expectation("XmlOutput")]
         [SampleFileTestData("../data/flv/TestData/Flv", "*.flv")]
@@ -29,7 +43,7 @@ namespace BililiveRecorder.Flv.Tests.FlvTests
                 tags.Add(tag);
             }
 
-            await Verifier.Verify(tags.SerializeXml()).UseExtension("xml").UseParameters(path);
+            await Verifier.Verify(tags.SerializeXml(), extension: "xml").UseParameters(path);
         }
     }
 }

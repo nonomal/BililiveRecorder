@@ -4,14 +4,19 @@ using System.ComponentModel;
 using System.IO;
 using System.Net.Http;
 using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using BililiveRecorder.Core.Api;
+using BililiveRecorder.Core.Config;
 using BililiveRecorder.Core.Config.V3;
 using BililiveRecorder.Core.Danmaku;
 using BililiveRecorder.Core.Event;
 using BililiveRecorder.Core.Recording;
+using BililiveRecorder.Core.Scripting;
+using BililiveRecorder.Core.Templating;
 using Microsoft.Extensions.DependencyInjection;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Polly;
 using Serilog;
@@ -35,6 +40,7 @@ namespace BililiveRecorder.Core
         private readonly IApiClient apiClient;
         private readonly IBasicDanmakuWriter basicDanmakuWriter;
         private readonly IRecordTaskFactory recordTaskFactory;
+        private readonly UserScriptRunner userScriptRunner;
         private readonly CancellationTokenSource cts;
         private readonly CancellationToken ct;
 
@@ -43,18 +49,20 @@ namespace BililiveRecorder.Core
 
         private int shortId;
         private string name = string.Empty;
+        private long uid;
         private string title = string.Empty;
         private string areaNameParent = string.Empty;
         private string areaNameChild = string.Empty;
         private bool danmakuConnected;
         private bool streaming;
         private bool autoRecordForThisSession = true;
+        private bool nextRecordShouldUseRawMode = false;
 
         private IRecordTask? recordTask;
-        private DateTimeOffset recordTaskStartTime;
         private DateTimeOffset danmakuClientConnectTime;
-        private static readonly TimeSpan danmakuClientReconnectNoDelay = TimeSpan.FromMinutes(1);
+        private readonly ManualResetEventSlim danmakuConnectHoldOff = new();
 
+        private static readonly TimeSpan danmakuClientReconnectNoDelay = TimeSpan.FromMinutes(1);
         private static readonly HttpClient coverDownloadHttpClient = new HttpClient();
 
         static Room()
@@ -63,7 +71,7 @@ namespace BililiveRecorder.Core
             coverDownloadHttpClient.DefaultRequestHeaders.UserAgent.Clear();
         }
 
-        public Room(IServiceScope scope, RoomConfig roomConfig, int initDelayFactor, ILogger logger, IDanmakuClient danmakuClient, IApiClient apiClient, IBasicDanmakuWriter basicDanmakuWriter, IRecordTaskFactory recordTaskFactory)
+        public Room(IServiceScope scope, RoomConfig roomConfig, int initDelayFactor, ILogger logger, IDanmakuClient danmakuClient, IApiClient apiClient, IBasicDanmakuWriter basicDanmakuWriter, IRecordTaskFactory recordTaskFactory, UserScriptRunner userScriptRunner)
         {
             this.scope = scope ?? throw new ArgumentNullException(nameof(scope));
             this.RoomConfig = roomConfig ?? throw new ArgumentNullException(nameof(roomConfig));
@@ -73,6 +81,7 @@ namespace BililiveRecorder.Core
             this.apiClient = apiClient ?? throw new ArgumentNullException(nameof(apiClient));
             this.basicDanmakuWriter = basicDanmakuWriter ?? throw new ArgumentNullException(nameof(basicDanmakuWriter));
             this.recordTaskFactory = recordTaskFactory ?? throw new ArgumentNullException(nameof(recordTaskFactory));
+            this.userScriptRunner = userScriptRunner ?? throw new ArgumentNullException(nameof(userScriptRunner));
 
             this.timer = new Timer(this.RoomConfig.TimingCheckInterval * 1000d);
             this.cts = new CancellationTokenSource();
@@ -85,6 +94,7 @@ namespace BililiveRecorder.Core
 
             this.danmakuClient.StatusChanged += this.DanmakuClient_StatusChanged;
             this.danmakuClient.DanmakuReceived += this.DanmakuClient_DanmakuReceived;
+            this.danmakuClient.BeforeHandshake = this.DanmakuClient_BeforeHandshake;
 
             _ = Task.Run(async () =>
             {
@@ -96,6 +106,7 @@ namespace BililiveRecorder.Core
 
         public int ShortId { get => this.shortId; private set => this.SetField(ref this.shortId, value); }
         public string Name { get => this.name; private set => this.SetField(ref this.name, value); }
+        public long Uid { get => this.uid; private set => this.SetField(ref this.uid, value); }
         public string Title { get => this.title; private set => this.SetField(ref this.title, value); }
         public string AreaNameParent { get => this.areaNameParent; private set => this.SetField(ref this.areaNameParent, value); }
         public string AreaNameChild { get => this.areaNameChild; private set => this.SetField(ref this.areaNameChild, value); }
@@ -202,8 +213,11 @@ namespace BililiveRecorder.Core
             var room = (await this.apiClient.GetRoomInfoAsync(this.RoomConfig.RoomId).ConfigureAwait(false)).Data;
             if (room != null)
             {
+                this.logger.Debug("拉取房间信息成功: {@room}", room);
+
                 this.RoomConfig.RoomId = room.Room.RoomId;
                 this.ShortId = room.Room.ShortId;
+                this.Uid = room.Room.Uid;
                 this.Title = room.Room.Title;
                 this.AreaNameParent = room.Room.ParentAreaName;
                 this.AreaNameChild = room.Room.AreaName;
@@ -212,7 +226,36 @@ namespace BililiveRecorder.Core
                 this.Name = room.User.BaseInfo.Name;
 
                 this.RawBilibiliApiJsonData = room.RawBilibiliApiJsonData;
+
+                // allow danmaku client to connect
+                this.danmakuConnectHoldOff.Set();
             }
+        }
+
+        public void MarkNextRecordShouldUseRawMode()
+        {
+            this.nextRecordShouldUseRawMode = true;
+        }
+
+        private static readonly TimeSpan TitleRegexMatchTimeout = TimeSpan.FromSeconds(0.5);
+
+        /// <exception cref="ArgumentException" />
+        /// <exception cref="RegexMatchTimeoutException" />
+        private bool DoesTitleAllowRecord()
+        {
+            // 按新行分割的正则表达式
+            var patterns = this.RoomConfig.TitleFilterPatterns?.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+            if (patterns is null || patterns.Length == 0)
+                return true;
+
+            foreach (var pattern in patterns)
+            {
+                if (Regex.IsMatch(input: this.Title, pattern: pattern, options: RegexOptions.None, matchTimeout: TitleRegexMatchTimeout))
+                    return false;
+            }
+
+            return true;
         }
 
         ///
@@ -229,14 +272,28 @@ namespace BililiveRecorder.Core
                 if (this.recordTask != null)
                     return;
 
-                var task = this.recordTaskFactory.CreateRecordTask(this);
+                try
+                {
+                    if (!this.DoesTitleAllowRecord())
+                    {
+                        this.logger.Information("标题匹配到跳过录制设置中的规则，不录制");
+                        return;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    this.logger.Warning(ex, "检查标题是否匹配跳过录制正则表达式时出错");
+                }
+
+                var task = this.recordTaskFactory.CreateRecordTask(this, this.nextRecordShouldUseRawMode ? RecordMode.RawData : null);
+                this.nextRecordShouldUseRawMode = false;
+
                 task.IOStats += this.RecordTask_IOStats;
                 task.RecordingStats += this.RecordTask_RecordingStats;
                 task.RecordFileOpening += this.RecordTask_RecordFileOpening;
                 task.RecordFileClosed += this.RecordTask_RecordFileClosed;
                 task.RecordSessionEnded += this.RecordTask_RecordSessionEnded;
                 this.recordTask = task;
-                this.recordTaskStartTime = DateTimeOffset.UtcNow;
                 this.Stats.Reset();
                 this.OnPropertyChanged(nameof(this.Recording));
 
@@ -271,6 +328,12 @@ namespace BililiveRecorder.Core
                             this.logger.Warning("因为硬盘空间已满，本次不再自动重试启动录制。");
                             return;
                         }
+                        else if (ex is BilibiliApiResponseCodeNotZeroException notzero && notzero.Code == 19002005)
+                        {
+                            // 房间已加密
+                            this.logger.Warning("房间已加密，无密码获取不到直播流，本次不再自动重试启动录制。");
+                            return;
+                        }
                         else
                         {
                             // 请求直播流出错时的重试逻辑
@@ -281,7 +344,9 @@ namespace BililiveRecorder.Core
 
                     RecordSessionStarted?.Invoke(this, new RecordSessionStartedEventArgs(this)
                     {
-                        SessionId = this.recordTask.SessionId
+                        SessionId = this.recordTask.SessionId,
+                        Qn = this.recordTask.Qn,
+                        QnDescription = StreamQualityNumber.MapToString(this.recordTask.Qn),
                     });
                 });
             }
@@ -337,7 +402,7 @@ namespace BililiveRecorder.Core
 
         ///
         private void StartDamakuConnection(bool delay = true) =>
-            Task.Run(async () =>
+            _ = Task.Run(async () =>
             {
                 if (this.disposedValue)
                     return;
@@ -356,7 +421,19 @@ namespace BililiveRecorder.Core
                         }
                     }
 
-                    await this.danmakuClient.ConnectAsync(this.RoomConfig.RoomId, this.RoomConfig.DanmakuTransport, this.ct).ConfigureAwait(false);
+                    // 至少要等到获取到一次房间信息后才能连接弹幕服务器。
+                    // 理论上不专门写这么个逻辑也应该没有问题的，但为了保证连接时肯定有主播 uid 信息还是加上吧。
+                    // 这里同步堵塞等待了，因为 ManualResetEventSlim 没有 Async Wait
+                    // 并且这里运行在一个新的 Task 里，同步等待的影响也不是很大。
+                    if (!this.danmakuConnectHoldOff.Wait(TimeSpan.FromSeconds(2)))
+                    {
+                        // 如果 2 秒后还没有获取到房间信息直接返回
+                        // 房间信息获取成功后会自动再次尝试连接弹幕服务器所以不用担心会导致不连接弹幕服务器
+                        this.logger.Debug("暂无房间信息，不连接弹幕服务器");
+                        return;
+                    }
+
+                    await this.danmakuClient.ConnectAsync(this.RoomConfig.RoomId, this.RoomConfig.DanmakuTransport, this.RoomConfig.NetworkTransportBindAddress, this.RoomConfig.NetworkTransportAllowedAddressFamily, this.ct).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -372,7 +449,7 @@ namespace BililiveRecorder.Core
         #region Event Handlers
 
         ///
-        private void RecordTask_IOStats(object sender, IOStatsEventArgs e)
+        private void RecordTask_IOStats(object? sender, IOStatsEventArgs e)
         {
             this.logger.Verbose("IO stats: {@stats}", e);
 
@@ -390,7 +467,7 @@ namespace BililiveRecorder.Core
         }
 
         ///
-        private void RecordTask_RecordingStats(object sender, RecordingStatsEventArgs e)
+        private void RecordTask_RecordingStats(object? sender, RecordingStatsEventArgs e)
         {
             this.logger.Verbose("Recording stats: {@stats}", e);
 
@@ -424,7 +501,7 @@ namespace BililiveRecorder.Core
         }
 
         ///
-        private void RecordTask_RecordFileClosed(object sender, RecordFileClosedEventArgs e)
+        private void RecordTask_RecordFileClosed(object? sender, RecordFileClosedEventArgs e)
         {
             this.basicDanmakuWriter.Disable();
 
@@ -432,7 +509,7 @@ namespace BililiveRecorder.Core
         }
 
         ///
-        private void RecordTask_RecordFileOpening(object sender, RecordFileOpeningEventArgs e)
+        private void RecordTask_RecordFileOpening(object? sender, RecordFileOpeningEventArgs e)
         {
             if (this.RoomConfig.RecordDanmaku)
                 this.basicDanmakuWriter.EnableWithPath(Path.ChangeExtension(e.FullPath, "xml"), this);
@@ -451,7 +528,7 @@ namespace BililiveRecorder.Core
         {
             const int MAX_ATTEMPT = 3;
             var attempt = 0;
-retry:
+        retry:
             try
             {
                 var coverUrl = this.RawBilibiliApiJsonData?["room_info"]?["cover"]?.ToObject<string>();
@@ -483,7 +560,7 @@ retry:
         }
 
         ///
-        private void RecordTask_RecordSessionEnded(object sender, EventArgs e)
+        private void RecordTask_RecordSessionEnded(object? sender, EventArgs e)
         {
             Guid id;
             lock (this.recordStartLock)
@@ -526,22 +603,53 @@ retry:
             });
         }
 
-        private void DanmakuClient_DanmakuReceived(object sender, Api.Danmaku.DanmakuReceivedEventArgs e)
+        private string? DanmakuClient_BeforeHandshake(string json)
+        {
+            var danmakuAuthenticateWithStreamerUid = this.RoomConfig.DanmakuAuthenticateWithStreamerUid;
+            if (danmakuAuthenticateWithStreamerUid)
+            {
+                var obj = JObject.Parse(json);
+                obj["uid"] = this.Uid;
+                obj.Remove("key");
+                obj.Remove("buvid");
+                json = obj.ToString(Formatting.None);
+            }
+
+            var scriptUpdatedJson = this.userScriptRunner.CallOnDanmakuHandshake(this.logger, this, json);
+
+            if (scriptUpdatedJson is not null)
+                return scriptUpdatedJson;
+            else if (danmakuAuthenticateWithStreamerUid)
+                return json;
+            else
+                return null;
+        }
+
+        private void DanmakuClient_DanmakuReceived(object? sender, Api.Danmaku.DanmakuReceivedEventArgs e)
         {
             var d = e.Danmaku;
 
             switch (d.MsgType)
             {
                 case Api.Danmaku.DanmakuMsgType.LiveStart:
+                    this.logger.Debug("推送直播开始");
                     this.Streaming = true;
                     break;
                 case Api.Danmaku.DanmakuMsgType.LiveEnd:
+                    this.logger.Debug("推送直播结束");
                     this.Streaming = false;
                     break;
                 case Api.Danmaku.DanmakuMsgType.RoomChange:
+                    this.logger.Debug("推送房间信息变更, {Title}, {AreaNameParent}, {AreaNameChild}", d.Title, d.ParentAreaName, d.AreaName);
                     this.Title = d.Title ?? this.Title;
                     this.AreaNameParent = d.ParentAreaName ?? this.AreaNameParent;
                     this.AreaNameChild = d.AreaName ?? this.AreaNameChild;
+                    break;
+                case Api.Danmaku.DanmakuMsgType.RoomLock:
+                    this.logger.Information("直播间被封禁");
+                    break;
+                case Api.Danmaku.DanmakuMsgType.CutOff:
+                    this.logger.Information("直播被管理员切断");
                     break;
                 default:
                     break;
@@ -550,32 +658,31 @@ retry:
             _ = Task.Run(async () => await this.basicDanmakuWriter.WriteAsync(d));
         }
 
-        private void DanmakuClient_StatusChanged(object sender, Api.Danmaku.StatusChangedEventArgs e)
+        private void DanmakuClient_StatusChanged(object? sender, Api.Danmaku.StatusChangedEventArgs e)
         {
+            this.DanmakuConnected = e.Connected;
             if (e.Connected)
             {
-                this.DanmakuConnected = true;
                 this.danmakuClientConnectTime = DateTimeOffset.UtcNow;
                 this.logger.Information("弹幕服务器已连接");
             }
             else
             {
-                this.DanmakuConnected = false;
                 this.logger.Information("与弹幕服务器的连接被断开");
 
                 // 如果连接弹幕服务器的时间在至少 1 分钟之前，重连时不需要等待
                 // 针对偶尔的网络波动的优化，如果偶尔断开了尽快重连，减少漏录的弹幕量
                 this.StartDamakuConnection(delay: !((DateTimeOffset.UtcNow - this.danmakuClientConnectTime) > danmakuClientReconnectNoDelay));
-
                 this.danmakuClientConnectTime = DateTimeOffset.MaxValue;
             }
         }
 
-        private void Timer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
+        private void Timer_Elapsed(object? sender, System.Timers.ElapsedEventArgs e)
         {
             this.StartDamakuConnection(delay: false);
 
-            if (this.RoomConfig.AutoRecord)
+            // 如果开启了自动录制 或者 还没有获取过第一次房间信息
+            if (this.RoomConfig.AutoRecord || !this.danmakuConnectHoldOff.IsSet)
             {
                 _ = Task.Run(async () =>
                 {
@@ -593,7 +700,8 @@ retry:
             }
         }
 
-        private void Room_PropertyChanged(object sender, PropertyChangedEventArgs e)
+
+        private void Room_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
             switch (e.PropertyName)
             {
@@ -609,12 +717,18 @@ retry:
                         this.AutoRecordForThisSession = true;
                     }
                     break;
+                case nameof(this.Title):
+                    if (this.RoomConfig.CuttingByTitle)
+                    {
+                        this.SplitOutput();
+                    }
+                    break;
                 default:
                     break;
             }
         }
 
-        private void RoomConfig_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        private void RoomConfig_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
             switch (e.PropertyName)
             {

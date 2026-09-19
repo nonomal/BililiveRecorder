@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using BililiveRecorder.Core.Api;
 using BililiveRecorder.Core.Event;
 using BililiveRecorder.Core.Scripting;
+using BililiveRecorder.Core.Templating;
 using Serilog;
 
 namespace BililiveRecorder.Core.Recording
@@ -31,7 +32,7 @@ namespace BililiveRecorder.Core.Recording
             var (fullPath, relativePath) = this.CreateFileName();
 
             try
-            { Directory.CreateDirectory(Path.GetDirectoryName(fullPath)); }
+            { Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!); }
             catch (Exception) { }
 
             this.fileOpeningEventArgs = new RecordFileOpeningEventArgs(this.room)
@@ -40,12 +41,14 @@ namespace BililiveRecorder.Core.Recording
                 FullPath = fullPath,
                 RelativePath = relativePath,
                 FileOpenTime = DateTimeOffset.Now,
+                Qn = this.qn,
+                QnDescription = StreamQualityNumber.MapToString(this.qn),
             };
             this.OnRecordFileOpening(this.fileOpeningEventArgs);
 
             this.logger.Information("新建录制文件 {Path}", fullPath);
 
-            var file = new FileStream(fullPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read | FileShare.Delete);
+            var file = new FileStream(fullPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read);
 
             _ = Task.Run(async () => await this.WriteStreamToFileAsync(stream, file).ConfigureAwait(false));
         }
@@ -59,14 +62,24 @@ namespace BililiveRecorder.Core.Recording
 
                 while (!this.ct.IsCancellationRequested)
                 {
+#if NET6_0_OR_GREATER
+                    var bytesRead = await stream.ReadAsync(buffer, this.ct).ConfigureAwait(false);
+#else
                     var bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, this.ct).ConfigureAwait(false);
+#endif
                     if (bytesRead == 0)
                         break;
 
                     Interlocked.Add(ref this.ioNetworkDownloadedBytes, bytesRead);
 
                     this.ioDiskStopwatch.Restart();
+
+#if NET6_0_OR_GREATER
+                    await file.WriteAsync(buffer.AsMemory(0, bytesRead)).ConfigureAwait(false);
+#else
                     await file.WriteAsync(buffer, 0, bytesRead).ConfigureAwait(false);
+#endif
+
                     this.ioDiskStopwatch.Stop();
 
                     lock (this.ioDiskStatsLock)
@@ -110,12 +123,24 @@ namespace BililiveRecorder.Core.Recording
                     recordFileClosedEvent = null;
 
                 try
-                { file.Dispose(); }
+                {
+#if NET6_0_OR_GREATER
+                    await file.DisposeAsync();
+#else
+                    file.Dispose();
+#endif
+                }
                 catch (Exception ex)
                 { this.logger.Warning(ex, "关闭文件时发生错误"); }
 
                 try
-                { stream.Dispose(); }
+                {
+#if NET6_0_OR_GREATER
+                    await stream.DisposeAsync();
+#else
+                    stream.Dispose();
+#endif
+                }
                 catch (Exception) { }
 
                 try

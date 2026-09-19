@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.Serialization;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using BililiveRecorder.Core.Api;
@@ -16,10 +17,10 @@ namespace BililiveRecorder.WPF.Pages
     public partial class AdvancedSettingsPage
     {
         private static readonly ILogger logger = Log.ForContext<AdvancedSettingsPage>();
-        private readonly IHttpClientAccessor? httpApiClient;
+        private readonly ICookieTester? httpApiClient;
         private readonly UserScriptRunner? userScriptRunner;
 
-        public AdvancedSettingsPage(IHttpClientAccessor? httpApiClient, UserScriptRunner? userScriptRunner)
+        public AdvancedSettingsPage(ICookieTester? httpApiClient, UserScriptRunner? userScriptRunner)
         {
             this.InitializeComponent();
             this.httpApiClient = httpApiClient;
@@ -28,7 +29,7 @@ namespace BililiveRecorder.WPF.Pages
 
         public AdvancedSettingsPage()
             : this(
-                  (IHttpClientAccessor?)(RootPage.ServiceProvider?.GetService(typeof(IHttpClientAccessor))),
+                  (ICookieTester?)(RootPage.ServiceProvider?.GetService(typeof(ICookieTester))),
                   (UserScriptRunner?)(RootPage.ServiceProvider?.GetService(typeof(UserScriptRunner)))
                   )
         { }
@@ -65,21 +66,18 @@ namespace BililiveRecorder.WPF.Pages
 
         private async Task TestCookieAsync()
         {
+            bool succeed;
+            string message;
+
             if (this.httpApiClient is null)
-            {
-                MessageBox.Show("No Http Client Available", "Cookie Test - Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
+                (succeed, message) = (false, "No Http Client Available");
+            else
+                (succeed, message) = await this.httpApiClient.TestCookieAsync().ConfigureAwait(false);
 
-            var resp = await this.httpApiClient.MainHttpClient.GetStringAsync("https://api.live.bilibili.com/xlive/web-ucenter/user/get_user_info").ConfigureAwait(false);
-            var jo = JObject.Parse(resp);
-            if (jo["code"]?.ToObject<int>() != 0)
-            {
-                MessageBox.Show("Response:\n" + resp, "Cookie Test - Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            MessageBox.Show("User: " + jo["data"]?["uname"]?.ToObject<string>(), "Cookie Test - Successed", MessageBoxButton.OK, MessageBoxImage.Information);
+            if (succeed)
+                MessageBox.Show(message, "Cookie Test - Succeed", MessageBoxButton.OK, MessageBoxImage.Information);
+            else
+                MessageBox.Show(message, "Cookie Test - Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
 
         private void TestScript_Click(object sender, RoutedEventArgs e)

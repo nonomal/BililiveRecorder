@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.Buffers.Binary;
+using System.IO;
 using System.IO.Compression;
 using System.IO.Pipelines;
 using System.Net;
@@ -30,6 +31,10 @@ namespace BililiveRecorder.Core.Api.Danmaku
 
         public event EventHandler<StatusChangedEventArgs>? StatusChanged;
         public event EventHandler<DanmakuReceivedEventArgs>? DanmakuReceived;
+
+        public Func<string, string?>? BeforeHandshake { get; set; } = null;
+
+        private static readonly JsonSerializerSettings jsonSerializerSettings = new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore };
 
         public DanmakuClient(IDanmakuServerApiClient apiClient, ILogger logger)
         {
@@ -62,7 +67,7 @@ namespace BililiveRecorder.Core.Api.Danmaku
             StatusChanged?.Invoke(this, StatusChangedEventArgs.False);
         }
 
-        public async Task ConnectAsync(int roomid, DanmakuTransportMode transportMode, CancellationToken cancellationToken)
+        public async Task ConnectAsync(int roomId, DanmakuTransportMode transportMode, string? bindAddress, AllowedAddressFamily allowedAddressFamily, CancellationToken cancellationToken)
         {
             if (this.disposedValue)
                 throw new ObjectDisposedException(nameof(DanmakuClient));
@@ -70,33 +75,33 @@ namespace BililiveRecorder.Core.Api.Danmaku
             if (!Enum.IsDefined(typeof(DanmakuTransportMode), transportMode))
                 throw new ArgumentOutOfRangeException(nameof(transportMode), transportMode, "Invalid danmaku transport mode.");
 
-            await this.semaphoreSlim.WaitAsync().ConfigureAwait(false);
+            await this.semaphoreSlim.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
                 if (this.danmakuTransport != null)
                     return;
 
-                var serverInfo = await this.apiClient.GetDanmakuServerAsync(roomid).ConfigureAwait(false);
+                var serverInfo = await this.apiClient.GetDanmakuServerAsync(roomId).ConfigureAwait(false);
                 if (serverInfo.Data is null)
                     return;
 
                 var danmakuServerInfo = serverInfo.Data.SelectDanmakuServer(transportMode);
 
-                this.logger.Debug("连接弹幕服务器 {Mode} {Host}:{Port} 房间: {RoomId} TokenLength: {TokenLength}", danmakuServerInfo.TransportMode, danmakuServerInfo.Host, danmakuServerInfo.Port, roomid, danmakuServerInfo.Token?.Length);
+                this.logger.Debug("连接弹幕服务器 {Mode} {Host}:{Port} 房间: {RoomId} TokenLength: {TokenLength}", danmakuServerInfo.TransportMode, danmakuServerInfo.Host, danmakuServerInfo.Port, roomId, danmakuServerInfo.Token?.Length);
 
                 IDanmakuTransport transport = danmakuServerInfo.TransportMode switch
                 {
-                    DanmakuTransportMode.Tcp => new DanmakuTransportTcp(),
-                    DanmakuTransportMode.Ws => new DanmakuTransportWebSocket(),
-                    DanmakuTransportMode.Wss => new DanmakuTransportSecureWebSocket(),
+                    DanmakuTransportMode.Tcp => new DanmakuTransportTcp(bindAddress),
+                    DanmakuTransportMode.Ws => new DanmakuTransportWebSocket(bindAddress),
+                    DanmakuTransportMode.Wss => new DanmakuTransportSecureWebSocket(bindAddress),
                     _ => throw new ArgumentOutOfRangeException(nameof(transportMode), transportMode, "Invalid danmaku transport mode."),
                 };
 
-                var reader = await transport.ConnectAsync(danmakuServerInfo.Host, danmakuServerInfo.Port, cancellationToken).ConfigureAwait(false);
+                var reader = await transport.ConnectAsync(danmakuServerInfo.Host, danmakuServerInfo.Port, allowedAddressFamily, cancellationToken).ConfigureAwait(false);
 
                 this.danmakuTransport = transport;
 
-                await this.SendHelloAsync(roomid, danmakuServerInfo.Token ?? string.Empty).ConfigureAwait(false);
+                await this.SendHelloAsync(roomId, this.apiClient.GetUid(), this.apiClient.GetBuvid3(), danmakuServerInfo.Token ?? string.Empty).ConfigureAwait(false);
                 await this.SendPingAsync().ConfigureAwait(false);
 
                 if (cancellationToken.IsCancellationRequested)
@@ -125,7 +130,7 @@ namespace BililiveRecorder.Core.Api.Danmaku
                         await this.DisconnectAsync().ConfigureAwait(false);
                     }
                     catch (Exception) { }
-                });
+                }, CancellationToken.None);
             }
             finally
             {
@@ -149,7 +154,7 @@ namespace BililiveRecorder.Core.Api.Danmaku
         }
 
 #pragma warning disable VSTHRD100 // Avoid async void methods
-        private async void SendPingMessageTimerCallback(object sender, ElapsedEventArgs e)
+        private async void SendPingMessageTimerCallback(object? sender, ElapsedEventArgs e)
 #pragma warning restore VSTHRD100 // Avoid async void methods
         {
             try
@@ -211,16 +216,31 @@ namespace BililiveRecorder.Core.Api.Danmaku
 
         #region Send
 
-        private Task SendHelloAsync(int roomid, string token) =>
-            this.SendMessageAsync(7, JsonConvert.SerializeObject(new
+        private Task SendHelloAsync(int roomid, long uid, string? buvid, string token)
+        {
+            var body = JsonConvert.SerializeObject(new
             {
-                uid = 0,
-                roomid = roomid,
-                protover = 0,
+                uid,
+                roomid,
+                protover = 3,
+                buvid,
                 platform = "web",
                 type = 2,
                 key = token,
-            }, Formatting.None));
+            }, Formatting.None, jsonSerializerSettings);
+
+            if (this.BeforeHandshake is { } func)
+            {
+                var newBody = func(body);
+                if (newBody is not null)
+                {
+                    this.logger.Debug("Danmaku BeforeHandshake: {OldBody} => {NewBody}", body, newBody);
+                    body = newBody;
+                }
+            }
+
+            return this.SendMessageAsync(7, body);
+        }
 
         private Task SendPingAsync() => this.SendMessageAsync(2);
 
@@ -229,9 +249,9 @@ namespace BililiveRecorder.Core.Api.Danmaku
             if (this.danmakuTransport is not { } transport)
                 return;
 
-            var playload = ((body?.Length ?? 0) > 0) ? Encoding.UTF8.GetBytes(body) : Array.Empty<byte>();
+            var payload = Encoding.UTF8.GetBytes(body);
             const int headerLength = 16;
-            var totalLength = playload.Length + headerLength;
+            var totalLength = payload.Length + headerLength;
 
             var buffer = ArrayPool<byte>.Shared.Rent(totalLength);
             try
@@ -242,8 +262,8 @@ namespace BililiveRecorder.Core.Api.Danmaku
                 BinaryPrimitives.WriteUInt32BigEndian(new Span<byte>(buffer, 8, 4), (uint)action);
                 BinaryPrimitives.WriteUInt32BigEndian(new Span<byte>(buffer, 12, 4), 1);
 
-                if (playload.Length > 0)
-                    Array.Copy(playload, 0, buffer, headerLength, playload.Length);
+                if (payload.Length > 0)
+                    Array.Copy(payload, 0, buffer, headerLength, payload.Length);
 
                 await transport.SendAsync(buffer, 0, totalLength).ConfigureAwait(false);
             }
@@ -315,17 +335,28 @@ namespace BililiveRecorder.Core.Api.Danmaku
             }
 
             if (header.Version == 2 && header.Action == 5)
-                ParseCommandDeflateBody(ref bodySlice, callback);
+            {
+                using var deflate = new DeflateStream(bodySlice.Slice(2, bodySlice.End).AsStream(), CompressionMode.Decompress, leaveOpen: false);
+                ParseCommandCompressedBody(deflate, callback);
+            }
+            else if (header.Version == 3 && header.Action == 5)
+            {
+#if NET6_0_OR_GREATER
+                using var brotli = new BrotliStream(bodySlice.AsStream(), CompressionMode.Decompress, leaveOpen: false);
+#else
+                using var brotli = new BrotliSharpLib.BrotliStream(bodySlice.AsStream(), CompressionMode.Decompress, leaveOpen: false);
+#endif
+                ParseCommandCompressedBody(brotli, callback);
+            }
             else
                 ParseCommandNormalBody(ref bodySlice, header.Action, callback);
 
             return true;
         }
 
-        private static void ParseCommandDeflateBody(ref ReadOnlySequence<byte> buffer, Action<string> callback)
+        private static void ParseCommandCompressedBody(Stream decompressed, Action<string> callback)
         {
-            using var deflate = new DeflateStream(buffer.Slice(2, buffer.End).AsStream(), CompressionMode.Decompress, leaveOpen: false);
-            var reader = PipeReader.Create(deflate);
+            var reader = PipeReader.Create(decompressed);
             while (true)
             {
 #pragma warning disable VSTHRD002 // Avoid problematic synchronous waits
@@ -351,7 +382,7 @@ namespace BililiveRecorder.Core.Api.Danmaku
                 case 5:
                     {
                         if (buffer.Length > int.MaxValue)
-                            throw new ArgumentOutOfRangeException("ParseCommandNormalBody buffer length larger than int.MaxValue");
+                            throw new ArgumentOutOfRangeException(nameof(buffer), "ParseCommandNormalBody buffer length larger than int.MaxValue");
 
                         var b = ArrayPool<byte>.Shared.Rent((int)buffer.Length);
                         try

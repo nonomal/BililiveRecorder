@@ -14,7 +14,7 @@ namespace BililiveRecorder.Flv.Pipeline.Rules
     {
         private const string TS_STORE_KEY = "Timestamp_Store_Key";
 
-        private const int JUMP_THRESHOLD = 50;
+        private const int JUMP_THRESHOLD = 500;
 
         private const int AUDIO_DURATION_FALLBACK = 22;
         private const int AUDIO_DURATION_MIN = 20;
@@ -40,7 +40,7 @@ namespace BililiveRecorder.Flv.Pipeline.Rules
                     var tags = dataAction.Tags;
                     var currentTimestamp = tags[0].Timestamp;
 
-                    bool isFirstChunk = ts.FirstChunk;
+                    var isFirstChunk = ts.FirstChunk;
                     if (isFirstChunk)
                     {
                         // 第一段数据使用最小的时间戳作为基础偏移量
@@ -75,7 +75,7 @@ namespace BililiveRecorder.Flv.Pipeline.Rules
                 {
                     var tag = endAction.Tag;
                     var diff = tag.Timestamp - ts.LastOriginal;
-                    if (diff < 0 || diff > JUMP_THRESHOLD)
+                    if (diff is < 0 or > JUMP_THRESHOLD)
                     {
                         tag.Timestamp = ts.NextTimestampTarget;
                     }
@@ -95,13 +95,17 @@ namespace BililiveRecorder.Flv.Pipeline.Rules
                     s.Tag.Timestamp = ts.NextTimestampTarget;
                     // ts.Reset();
                 }
-                else if (action is PipelineHeaderAction h) // Header Tag 时间戳永远为 0
+                else if (action is PipelineHeaderAction h)
                 {
-                    if (h.VideoHeader != null)
-                        h.VideoHeader.Timestamp = 0;
-                    if (h.AudioHeader != null)
-                        h.AudioHeader.Timestamp = 0;
-                    ts.Reset();
+                    var annexBState = HandleNewHeaderRule.GetAnnexBState(context);
+                    if (annexBState != HandleNewHeaderRule.AnnexBState.IsAnnexB)
+                    {
+                        // Header Tag 时间戳重设到 0
+                        if (h.VideoHeader != null)
+                            h.VideoHeader.Timestamp = 0;
+                        if (h.AudioHeader != null)
+                            h.AudioHeader.Timestamp = 0;
+                    }
                 }
             }
         }

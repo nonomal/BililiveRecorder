@@ -38,6 +38,13 @@ export const data: Array<ConfigEntry> = [
         default: 100
     },
     {
+        id: "CuttingByTitle",
+        name: "改标题后自动分段",
+        type: "bool",
+        configType: "room",
+        default: false
+    },
+    {
         id: "RecordDanmaku",
         name: "弹幕录制",
         type: "bool",
@@ -84,14 +91,14 @@ export const data: Array<ConfigEntry> = [
         name: "直播画质",
         type: "string?",
         configType: "room",
-        default: "10000",
+        default: "avc10000,hevc10000",
     },
     {
         id: "FileNameRecordTemplate",
         name: "录制文件名模板",
         type: "string?",
         configType: "globalOnly",
-        default: '{{ roomId }}-{{ name }}/录制-{{ roomId }}-{{ "now" | time_zone: "Asia/Shanghai" | format_date: "yyyyMMdd-HHmmss-fff" }}-{{ title }}.flv',
+        default: '{{ roomId }}-{{ name | unescape }}/录制-{{ roomId }}-{{ "now" | time_zone: "Asia/Shanghai" | format_date: "yyyyMMdd-HHmmss-fff" }}-{{ title | unescape }}.flv',
     },
     {
         id: "FlvProcessorSplitOnScriptTag",
@@ -99,6 +106,28 @@ export const data: Array<ConfigEntry> = [
         type: "bool",
         configType: "room",
         default: false
+    },
+    {
+        id: "FlvProcessorDisableSplitOnH264AnnexB",
+        name: "FLV修复-检测到 H264 Annex-B 时禁用修复分段",
+        type: "bool",
+        configType: "room",
+        default: false
+    },
+    {
+        id: "FlvWriteMetadata",
+        name: "是否在视频文件写入直播信息 metadata",
+        type: "bool",
+        configType: "globalOnly",
+        advancedConfig: true,
+        default: true
+    },
+    {
+        id: "TitleFilterPatterns",
+        name: "不录制的标题匹配正则",
+        type: "string?",
+        configType: "room",
+        default: ""
     },
     {
         id: "WebHookUrls",
@@ -150,11 +179,11 @@ export const data: Array<ConfigEntry> = [
         type: "uint",
         configType: "globalOnly",
         advancedConfig: true,
-        default: 10 * 60,
+        default: 3 * 60,
     },
     {
         id: "TimingApiTimeout",
-        name: "请求B站API超时时间 毫秒",
+        name: "请求mikufansAPI超时时间 毫秒",
         type: "uint",
         configType: "globalOnly",
         advancedConfig: true,
@@ -214,7 +243,15 @@ export const data: Array<ConfigEntry> = [
         type: "DanmakuTransportMode",
         configType: "globalOnly",
         advancedConfig: true,
-        default: "DanmakuTransportMode.Random",
+        default: "DanmakuTransportMode.Wss",
+    },
+    {
+        id: "DanmakuAuthenticateWithStreamerUid",
+        name: "使用直播间主播的uid进行弹幕服务器认证",
+        type: "bool",
+        configType: "globalOnly",
+        advancedConfig: true,
+        default: false,
     },
     {
         id: "NetworkTransportUseSystemProxy",
@@ -229,6 +266,14 @@ export const data: Array<ConfigEntry> = [
         name: "允许使用的 IP 网络类型",
         type: "AllowedAddressFamily",
         default: "AllowedAddressFamily.Any",
+        configType: "globalOnly",
+        advancedConfig: true
+    },
+    {
+        id: "NetworkTransportBindAddress",
+        name: "绑定的网络接口或IP地址",
+        type: "string?",
+        default: "",
         configType: "globalOnly",
         advancedConfig: true
     },
